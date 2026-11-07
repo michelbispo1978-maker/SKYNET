@@ -60,9 +60,31 @@ while ($true) {
         foreach ($Item in $Updates.result) {
             $Offset = $Item.update_id + 1
             $Msg = $Item.message
-            if (-not $Msg -or -not $Msg.text) { continue }
+            if (-not $Msg) { continue }
             $Remetente = "$($Msg.chat.id)"
             if ($Remetente -ne $ChatAutorizado) { continue }
+
+            # Se o usuario enviou um documento (PDF, DOCX, TXT, PY, etc.) pelo Telegram
+            if ($Msg.document) {
+                $FileId = $Msg.document.file_id
+                $FileName = $Msg.document.file_name
+                Enviar-TextoTg $Remetente "Recebi '$FileName'. Baixando e analisando com o Leitor Universal..."
+                try {
+                    $FileInfo = Invoke-RestMethod -Uri "$BaseUri/getFile?file_id=$FileId" -TimeoutSec 20
+                    $FilePathTg = $FileInfo.result.file_path
+                    New-Item -ItemType Directory -Path "C:\SkynetPowerShell\temp" -Force | Out-Null
+                    $LocalDoc = "C:\SkynetPowerShell\temp\$FileName"
+                    Invoke-WebRequest -Uri "https://telegram.org" -OutFile $LocalDoc -TimeoutSec 30
+                    $PayloadDoc = @{ entrada = "ler-tudo: $LocalDoc" } | ConvertTo-Json -Compress
+                    $ResDoc = Invoke-RestMethod -Uri "http://localhost:8080/command" -Method Post -Headers $HeadersCore -Body ([System.Text.Encoding]::UTF8.GetBytes($PayloadDoc)) -TimeoutSec 120
+                    Enviar-TextoTg $Remetente $ResDoc.resultado
+                } catch {
+                    Enviar-TextoTg $Remetente "Erro ao processar arquivo do Telegram: $_"
+                }
+                continue
+            }
+
+            if (-not $Msg.text) { continue }
 
             $CmdTexto = $Msg.text.Trim()
             $Payload = @{ entrada = $CmdTexto } | ConvertTo-Json -Compress

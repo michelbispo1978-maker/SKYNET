@@ -1,0 +1,699 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SKYNET MICHELBDS — Central Local</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#030914;color:#edf3f8;font-family:Segoe UI,system-ui,sans-serif;height:100vh;display:flex;flex-direction:column;overflow:hidden}
+.topbar{height:52px;background:linear-gradient(90deg,#061a30,#041a2e);border-bottom:1px solid #1b3448;display:flex;align-items:center;justify-content:space-between;padding:0 18px}
+.logo{color:#67b7ff;font-weight:900;letter-spacing:3px;font-size:15px;display:flex;align-items:center;gap:10px}
+.logo::before{content:"✦";font-size:18px;filter:drop-shadow(0 0 8px #67b7ff)}
+.badge{background:#0a2440;border:1px solid #67b7ff;color:#67b7ff;padding:4px 10px;border-radius:12px;font-size:9px;letter-spacing:1px}
+.main{flex:1;display:flex;overflow:hidden}
+.left{width:260px;background:#050f1b;border-right:1px solid #1b3448;padding:16px;display:flex;flex-direction:column;gap:10px;overflow-y:auto}
+.btn{padding:12px 14px;border-radius:12px;border:1px solid #1b3448;background:#0a1a2e;color:#a9d7ef;cursor:pointer;text-align:left;font-size:12px;transition:.2s}
+.btn:hover,.btn.active{border-color:#67b7ff;background:linear-gradient(90deg,#07558a88,#08243b88);color:white;box-shadow:inset 3px 0 #67b7ff}
+.center{flex:1;display:flex;flex-direction:column;background:#040d1a;overflow:hidden}
+.chat-area{flex:1;overflow-y:auto;padding:20px 24px;font-size:14px;line-height:1.75}
+.msg-user{background:#0a1f3a;border:1px solid #1b3448;border-radius:16px 16px 4px 16px;padding:14px 18px;margin:12px 0 12px 20%;color:#c8d8e8}
+.msg-assistant{background:#0b1017;border:1px solid #1b3448;border-radius:16px 16px 16px 4px;padding:18px 20px;margin:12px 20% 12px 0;white-space:pre-wrap}
+.msg-assistant strong{color:#67b7ff}
+.input-row{display:flex;gap:10px;padding:14px;border-top:1px solid #1b3448;background:#060e1a}
+.input-row input{flex:1;padding:14px 16px;border-radius:12px;border:1px solid #1b3448;background:#071629;color:white;outline:none;font-size:14px}
+.input-row select{width:190px;max-width:34%;padding:12px 10px;border-radius:12px;border:1px solid #1b3448;background:#071629;color:#d8ecff;outline:none;font-size:12px}
+.input-row button{padding:12px 20px;border-radius:12px;border:1px solid #087fb8;background:linear-gradient(90deg,#0a5a8a,#08243b);color:white;cursor:pointer;font-weight:700;letter-spacing:1px}
+.right{width:340px;background:#050f1b;border-left:1px solid #1b3448;display:flex;flex-direction:column}
+.panel-title{padding:12px 14px;border-bottom:1px solid #1b3448;color:#67b7ff;font-size:11px;letter-spacing:2px;font-weight:800}
+.files{flex:1;overflow-y:auto;padding:10px;font-size:12px}
+.file-item{padding:10px 12px;border:1px solid #1b3448;border-radius:10px;margin-bottom:8px;background:#0b1017;cursor:pointer;transition:.2s}
+.file-item:hover{border-color:#67b7ff55;box-shadow:0 0 10px #67b7ff22}
+.taskbar-hint{position:fixed;bottom:0;left:0;right:0;height:4px;background:linear-gradient(90deg,#67b7ff,#087fb8);opacity:.7}
+#floating-research-panel{position:fixed;bottom:105px;right:28px;width:440px;max-width:calc(100vw - 20px);max-height:78vh;background:linear-gradient(145deg,#071629f5,#030b16f7);border:1px solid #0e3a5a;border-radius:18px;box-shadow:0 25px 70px #000c;z-index:9998;display:none;flex-direction:column;overflow:hidden;backdrop-filter:blur(12px)}
+#floating-research-panel.open{display:flex}
+.fr-header{display:flex;justify-content:space-between;align-items:center;padding:14px 18px;border-bottom:1px solid #1b3448;background:linear-gradient(90deg,#061a30,#041a2e);cursor:move}
+.fr-title{color:#67b7ff;font-size:12px;letter-spacing:2px;margin:0;font-weight:800}
+.fr-close{background:#0a2440;border:1px solid #174768;color:#67b7ff;width:30px;height:30px;border-radius:50%;cursor:pointer}
+.fr-tabs{display:flex;gap:6px;padding:10px 12px;border-bottom:1px solid #1b3448;background:#050f1b}
+.fr-tab{flex:1;padding:9px 6px;border:1px solid transparent;border-radius:10px;background:transparent;color:#9aaaba;cursor:pointer;font-size:10px;text-align:center;font-weight:600}
+.fr-tab.active{color:white;border-color:#087fb8;background:linear-gradient(90deg,#07558a88,#08243b88);box-shadow:inset 0 -2px #67b7ff}
+.fr-input-row{display:flex;gap:8px;padding:12px;border-bottom:1px solid #1b3448;background:#0c1d2e}
+.fr-input-row input{flex:1;padding:12px 14px;border:1px solid #1b3448;border-radius:10px;background:#071629;color:#edf3f8;font-size:13px;outline:none}
+.fr-input-row button{padding:10px 16px;border-radius:10px;border:1px solid #087fb8;background:linear-gradient(90deg,#0a5a8a,#08243b);color:white;cursor:pointer;font-weight:700;font-size:12px}
+.fr-results{flex:1;overflow-y:auto;padding:16px;font-size:12px;line-height:1.65;background:#050f1b;min-height:200px;max-height:38vh;white-space:pre-wrap}
+.fr-sources{max-height:20vh;overflow-y:auto;border-top:1px solid #1b3448;background:#060e1a;padding:10px}
+.fr-source-card{border:1px solid #1b3448;border-radius:10px;padding:9px 11px;margin-bottom:7px;background:#0b1017;cursor:pointer;transition:.2s}
+.fr-source-card:hover{border-color:#67b7ff77;box-shadow:0 0 8px #67b7ff33}
+#core-panel,#auth-panel,#manifesto-panel,#pc-manager-panel,#memory-panel{display:none;position:fixed;top:52px;left:260px;right:340px;bottom:0;background:linear-gradient(145deg,#071629,#030b16);z-index:5000;overflow-y:auto;padding:22px;border-left:1px solid #1b3448;border-right:1px solid #1b3448}
+#core-panel.open,#auth-panel.open,#manifesto-panel.open,#pc-manager-panel.open,#memory-panel.open{display:block}
+.skynet-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(145px,1fr));gap:9px;margin:12px 0 18px}
+.skynet-task{padding:11px;border:1px solid #1b4965;border-radius:10px;background:#0a1a2e;color:#c8e7fa;text-align:left;cursor:pointer;font-size:11px}
+.skynet-task:hover{border-color:#67b7ff;background:#0b2944}
+.skynet-output{white-space:pre-wrap;overflow-wrap:anywhere;background:#030a14;border:1px solid #1b3448;border-radius:10px;padding:14px;min-height:100px;max-height:42vh;overflow:auto;color:#b9d8ed;font:11px/1.6 Consolas,monospace}
+.skynet-field{width:100%;padding:10px;border:1px solid #1b4965;border-radius:8px;background:#071629;color:#edf3f8;margin:5px 0 10px}
+.edit-card{background:#0b1017;border:1px solid #1b3448;border-radius:14px;padding:16px;margin-bottom:12px}
+.edit-card h3{color:#67b7ff;font-size:12px;letter-spacing:1px;margin-bottom:10px}
+.code-editor{width:100%;height:180px;background:#030a14;color:#a9d7ef;border:1px solid #1b3448;border-radius:10px;padding:12px;font-family:Consolas,monospace;font-size:11px;resize:vertical}
+.owner-badge{background:linear-gradient(135deg,#0a3a1a,#0e5a2a);border:1px solid #2ecc71;color:#2ecc71;padding:6px 12px;border-radius:20px;font-size:10px;font-weight:800;display:inline-block;margin-bottom:10px}
+.auth-card{background:linear-gradient(135deg,#1a0a0a,#2a1414);border:1px solid #ff4d4d;border-radius:14px;padding:14px;margin-bottom:10px}
+.auth-card.approved{border-color:#2ecc71;background:linear-gradient(135deg,#0a1a0a,#141e14)}
+.btn-save{padding:10px 18px;border-radius:10px;border:1px solid #2ecc71;background:#0a3a1a;color:#2ecc71;cursor:pointer;font-weight:800;font-size:11px;margin-top:8px}
+.btn-deny{padding:10px 18px;border-radius:10px;border:1px solid #ff4d4d;background:#2a1414;color:#ff6b6b;cursor:pointer;font-weight:800;font-size:11px;margin-top:8px;margin-left:8px}
+.btn-approve{padding:10px 18px;border-radius:10px;border:1px solid #2ecc71;background:linear-gradient(90deg,#0a5a3a,#0e5a2a);color:white;cursor:pointer;font-weight:800;font-size:11px;margin-top:8px}
+@media(max-width:900px){.right{display:none}#core-panel,#auth-panel,#manifesto-panel,#pc-manager-panel,#memory-panel{left:0;right:0}.left{width:190px}}
+#skynet-voice-panel{position:fixed;left:22px;bottom:72px;z-index:10019;width:310px;max-width:calc(100vw - 28px);background:#061525f5;color:#eaf7ff;border:1px solid #2875a5;border-radius:15px;padding:14px;box-shadow:0 15px 45px #000b;display:none;font:12px Segoe UI,sans-serif;backdrop-filter:blur(12px)}
+#skynet-voice-panel.open{display:block}
+#skynet-voice-panel h3{margin:0 0 10px;color:#67b7ff;font-size:12px;letter-spacing:1px}
+#skynet-voice-panel label{display:block;margin:8px 0 4px;color:#a9d7ef}
+#skynet-voice-panel select,#skynet-voice-panel input[type=range]{width:100%}
+#skynet-voice-panel select{background:#071629;color:white;border:1px solid #1b4965;border-radius:7px;padding:7px}
+#skynet-voice-panel .sv-row{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
+#skynet-voice-panel button{background:#0a3555;color:#eaf7ff;border:1px solid #2875a5;border-radius:8px;padding:8px 10px;cursor:pointer}
+#skynet-voice-panel .sv-status{color:#8cb6ce;font-size:11px;margin-top:9px;line-height:1.4}
+#skynet-voice-panel input[type=checkbox]{accent-color:#67b7ff;margin-right:6px}
+</style>
+</head>
+<body>
+<div class="topbar">
+<div class="logo">SKYNET MICHELBDS — CENTRAL LOCAL</div>
+<div style="display:flex;gap:8px;align-items:center">
+<button type="button" class="badge tab" id="t-assistente" onclick="openTab('assistente')" style="cursor:pointer" aria-label="Assistente Local">◉ ASSISTENTE LOCAL</button>
+<button type="button" class="badge tab" id="t-acesso" onclick="openTab('acesso')" style="cursor:pointer" aria-label="Acesso Local">🔐 ACESSO LOCAL</button>
+<button type="button" class="badge tab" id="t-wiki" onclick="openTab('wiki')" style="cursor:pointer" aria-label="Wiki mais Local">🔍 WIKI + LOCAL</button>
+<button type="button" class="badge tab" id="t-porta" onclick="openTab('porta')" style="cursor:pointer" aria-label="Porta 5000 Auto">PORTA 5000 AUTO</button>
+<button type="button" class="badge tab" id="t-voz" onclick="toggleSkynetVoice()" style="cursor:pointer" aria-label="Voz">🎙️ VOZ</button>
+</div>
+</div>
+<div class="main">
+<div class="left" role="navigation" aria-label="Menu principal">
+<button class="btn active" data-mode="chat" aria-label="Chat Local">💬 CHAT LOCAL</button>
+<button class="btn" data-mode="pc" aria-label="PC Manager">🖥️ PC MANAGER</button>
+<button class="btn" data-mode="auth" aria-label="Autorizações">🔐 AUTORIZAÇÕES</button>
+<button class="btn" data-mode="memory" aria-label="Memória e Histórico">🧠 MEMÓRIA E HISTÓRICO</button>
+<button class="btn" data-mode="core" aria-label="Core Editável">⚙️ CORE EDITÁVEL</button>
+<button class="btn" data-mode="manifesto" aria-label="Michelbds">📜 MICHELBDS</button>
+<button class="btn" data-mode="hibrido" aria-label="Pesquisa Híbrida">🔍 PESQUISA HÍBRIDA</button>
+<button class="btn" data-mode="security" aria-label="Segurança">🛡️ SEGURANÇA</button>
+<button class="btn" data-mode="nuc" aria-label="Status Local">📊 STATUS LOCAL</button>
+<button class="btn" data-mode="files" aria-label="Arquivos">📁 ARQUIVOS</button>
+<div style="margin-top:16px;padding:12px;border:1px dashed #1b3448;border-radius:12px;font-size:10px;color:#9aaaba;line-height:1.6">
+<b style="color:#67b7ff">SKYNET LOCAL</b><br>
+Sou a SKYNET, sua assistente local integrada ao Ollama e às ferramentas autorizadas do Windows.<br><br>
+<b>Real:</b><br>
+• Pesquisa web: Wikipédia PT<br>
+• Local: pasta local do SKYNET + arquivos permitidos<br>
+• Memória: SQLite<br>
+• Interface web local<br>
+• Pesquisa híbrida pelo menu lateral<br>
+• Porta 5000 AUTO autônomo<br>
+• Acesso remoto/nuvem: desativado por segurança<br>
+</div>
+<div style="margin-top:auto;padding:10px;text-align:center;font-size:9px;color:#3a4d60">
+SKYNET MICHELBDS<br>
+Assistente local • Windows<br>
+PC Manager + voz + memória<br>
+127.0.0.1:5000 • Acesso local
+</div>
+</div>
+<div class="center">
+<div class="chat-area" id="chat-area" role="log" aria-live="polite" aria-label="Área de chat">
+<div class="msg-assistant">Olá! Sou a <strong>SKYNET MICHELBDS</strong>, sua assistente local no Windows, conectada ao Ollama pela porta <strong>5000</strong>. 😊
+
+Posso conversar com modelos locais e usar módulos locais autorizados:
+
+<strong>🔍 Pesquisa híbrida:</strong>
+• 🌐 <strong>Pesquisa web:</strong> Wikipédia PT API oficial
+• 📁 <strong>Busca local:</strong> arquivos permitidos na pasta do SKYNET
+• 💾 <strong>Memória real:</strong> SQLite skynet_memory.db com histórico
+
+<strong>🖥️ Ferramentas locais disponíveis:</strong>
+• 📌 <strong>PC Manager:</strong> consultas do Windows e apps predefinidos
+• 🔐 <strong>Autorização:</strong> senha do proprietário e revisão individual
+• 🔍 <strong>Pesquisa híbrida:</strong> acessível pelo menu lateral, sem botão flutuante
+• ⚡ <strong>Voz:</strong> recursos de fala do navegador, conforme suporte e permissões
+
+<strong>Exemplo:</strong> me diga <em>"pesquise vulnerabilidades Windows 11 e cruze com meus arquivos locais"</em> e vou fazer pesquisa híbrida real agora, cruzando internet + seu PC.
+
+Como posso ajudar?
+</div>
+</div>
+<div class="input-row">
+<select id="model-select" aria-label="Modelo Ollama"><option value="">Carregando modelos...</option></select>
+<input id="input" placeholder="Fale com a réplica idêntica... (pesquisa híbrida real internet + PC)" aria-label="Mensagem para SKYNET" />
+<button id="send" type="button" aria-label="Enviar mensagem">ENVIAR</button>
+</div>
+</div>
+<div class="right" role="complementary" aria-label="Painéis laterais">
+<div class="panel-title">🔀 FONTES HÍBRIDAS REAIS</div>
+<div class="files" id="sources-panel" style="max-height:40%"><div style="color:#557d99;font-size:11px;padding:10px;text-align:center">Faça uma pesquisa para ver fontes reais aqui<br>Internet + Local</div></div>
+<div class="panel-title">📁 ARQUIVOS LOCAIS SKYNET</div>
+<div class="files" id="files-panel">Carregando...</div>
+<div class="panel-title">🖥️ SERVIDOR LOCAL</div>
+<div class="files" id="nuc-panel" style="max-height:20%"><div style="font-size:10px;color:#557d99">Carregando status...</div></div>
+</div>
+</div>
+<div class="taskbar-hint"></div>
+
+<div id="floating-research-panel" role="dialog" aria-label="Pesquisa Híbrida Real">
+<div class="fr-header" id="fr-drag-handle">
+<h3 class="fr-title">🔀 PESQUISA HÍBRIDA REAL</h3>
+<div style="display:flex;gap:6px;align-items:center"><span class="badge" id="fr-status">◉ ONLINE 5000 AUTO</span><button class="fr-close" id="fr-close" type="button" aria-label="Fechar">✕</button></div>
+</div>
+<div class="fr-tabs">
+<button class="fr-tab active" data-fmode="hibrido" type="button">🔀 HÍBRIDO REAL</button>
+<button class="fr-tab" data-fmode="web" type="button">🌐 WEB REAL</button>
+<button class="fr-tab" data-fmode="files" type="button">📁 LOCAL REAL</button>
+<button class="fr-tab" data-fmode="memory" type="button">💾 MEMÓRIA</button>
+</div>
+<div class="fr-input-row">
+<input id="fr-query" placeholder="Pesquisar Wikipédia, arquivos locais ou memória..." aria-label="Consulta de pesquisa" />
+<button id="fr-run" type="button">🔍 PESQUISAR</button>
+</div>
+<div class="fr-results" id="fr-results"><strong>SKYNET - PESQUISA WEB + ARQUIVOS LOCAIS + MEMÓRIA</strong>
+
+🌐 Internet REAL:
+• Wikipédia PT - API oficial
+
+📁 Local REAL:
+• Busca na pasta local do SKYNET
+• Leitura conteúdo dentro de arquivos .txt .py .html .log
+
+💾 Memória REAL:
+• SQLite skynet_memory.db
+
+Integrado à barra tarefas + menu iniciar.
+Porta 5000 AUTO autônomo.
+</div>
+<div class="fr-sources" id="fr-sources-list"><div style="font-size:10px;color:#557d99;text-align:center">Fontes reais aparecerão aqui</div></div>
+</div>
+
+<script>
+const chatArea=document.getElementById('chat-area');
+const input=document.getElementById('input');
+const sendBtn=document.getElementById('send');
+const sourcesPanel=document.getElementById('sources-panel');
+const filesPanel=document.getElementById('files-panel');
+const nucPanel=document.getElementById('nuc-panel');
+let history=[];
+let ownerPassCache=null;
+let ownerPassCacheUntil=0;
+function clearOwnerPassword(){ ownerPassCache=null; ownerPassCacheUntil=0; }
+function ownerPassword(){
+  if(ownerPassCache && Date.now()<ownerPassCacheUntil) return ownerPassCache;
+  clearOwnerPassword();
+  const value=window.prompt('Senha local do proprietário:');
+  if(value===null || !value) return '';
+  ownerPassCache=value; ownerPassCacheUntil=Date.now()+10*60*1000;
+  return value;
+}
+function ownerHeaders(){ const password=ownerPassword(); return password ? {'X-Owner-Password':password} : {}; }
+async function skynetFetch(url,options={}){
+  const response=await fetch(url,options);
+  if(response.status===401 || response.status===403) clearOwnerPassword();
+  return response;
+}
+async function loadFiles(){
+  try{
+    const r=await skynetFetch('/api/files',{headers:ownerHeaders()});
+    const data=await r.json();
+    if(!r.ok) throw new Error(data.error||'Falha ao listar arquivos');
+    filesPanel.replaceChildren();
+    (Array.isArray(data)?data:[]).slice(0,120).forEach(f=>{
+      const div=document.createElement('div'); div.className='file-item';
+      const name=document.createElement('div'); name.style.cssText='font-size:11px;font-weight:600;color:#a9d7ef'; name.textContent=String(f.name||'');
+      const path=document.createElement('div'); path.style.cssText='font-size:9px;color:#557d99'; path.textContent=String(f.path||'').slice(0,120);
+      div.append(name,path); filesPanel.appendChild(div);
+    });
+  } catch(e){ filesPanel.textContent='[ERRO] '+e.message; }
+}
+filesPanel.textContent='Arquivos locais: carregamento sob demanda.';
+async function loadStatus(){
+  try{
+    const r=await fetch('/api/status');
+    const d=await r.json();
+    nucPanel.textContent='Servidor: '+String(d.mode||'—')+'\nPorta: '+String(d.port||'—')+'\nCore editável: '+(d.core_editavel?'sim':'não')+'\nEscopo: 127.0.0.1 (local)';
+  } catch { nucPanel.textContent='Offline'; }
+}
+loadStatus(); setInterval(loadStatus,8000);
+function closeAllPanels(){['manifesto-panel','core-panel','auth-panel','pc-manager-panel','memory-panel'].forEach(id=>document.getElementById(id)?.classList.remove('open'));}
+document.querySelectorAll('.btn[data-mode]').forEach(b=>{
+  b.addEventListener('click',()=>{
+    document.querySelectorAll('.left .btn').forEach(x=>x.classList.remove('active'));
+    b.classList.add('active');
+    const mode=b.dataset.mode;
+    closeAllPanels();
+    if(mode==='manifesto') document.getElementById('manifesto-panel').classList.add('open');
+    if(mode==='core'){document.getElementById('core-panel').classList.add('open'); loadCoreFiles();}
+    if(mode==='auth'){document.getElementById('auth-panel').classList.add('open'); loadAuths();}
+    if(mode==='hibrido'){document.getElementById('floating-research-panel').classList.add('open'); document.getElementById('fr-query').focus();}
+    if(mode==='pc'){document.getElementById('pc-manager-panel').classList.add('open');}
+    if(mode==='memory'){document.getElementById('memory-panel').classList.add('open'); loadSavedMemory(); loadConversationHistory();}
+    if(mode==='security'){addMsg('assistant','SEGURANÇA LOCAL\n\n• Servidor limitado a 127.0.0.1:5000\n• API protegida por senha do proprietário nas operações administrativas\n• Consultas do PC Manager são de leitura; abertura de aplicativos usa lista fechada\n• Aprovações individuais; aprovação em lote desativada\n• Ollama local em 127.0.0.1:11434\n• Túnel/nuvem não configurado por este pacote');}
+  });
+});
+async function loadCoreFiles(){
+  const list=document.getElementById('core-files-list');
+  list.textContent='Carregando core editável...';
+  try{
+    const res=await skynetFetch('/api/core/files',{headers:ownerHeaders()});
+    const files=await res.json();
+    if(!res.ok || !files.ok) throw new Error(files.error||'Autenticação necessária');
+    list.replaceChildren();
+    const ownerDiv=document.createElement('div'); ownerDiv.className='edit-card'; ownerDiv.style.borderColor='#2ecc71';
+    const ownerTitle=document.createElement('h3'); ownerTitle.textContent='owner.key - protegido';
+    const ownerText=document.createElement('p'); ownerText.style.cssText='font-size:10px;color:#9aaaba'; ownerText.textContent='A credencial do proprietário não é exibida nem editável pela interface.';
+    ownerDiv.append(ownerTitle,ownerText); list.appendChild(ownerDiv);
+    (Array.isArray(files.core)?files.core:[]).forEach(f=>{
+      const card=document.createElement('div'); card.className='edit-card';
+      const title=document.createElement('h3'); title.textContent=String(f.name||'Arquivo');
+      const meta=document.createElement('p'); meta.style.cssText='font-size:10px;color:#9aaaba;margin-bottom:8px'; meta.textContent=String(f.path||'')+' - '+String(f.size||0)+' bytes';
+      const editor=document.createElement('textarea'); editor.className='code-editor'; editor.style.height='260px'; editor.value=String(f.content||'').slice(0,12000);
+      const controls=document.createElement('div'); controls.style.cssText='display:flex;gap:8px';
+      const save=document.createElement('button'); save.className='btn-save'; save.textContent='Salvar '+String(f.name||'arquivo');
+      save.addEventListener('click',()=>saveCoreFile(String(f.name||''),editor.value));
+      const reload=document.createElement('button'); reload.className='btn-deny'; reload.textContent='Recarregar'; reload.addEventListener('click',loadCoreFiles);
+      controls.append(save,reload); card.append(title,meta,editor,controls); list.appendChild(card);
+    });
+  }catch(e){list.textContent='[ERRO] '+e.message;}
+}
+async function saveCoreFile(name, content){
+  if(!confirm('Salvar '+name+'? Só Michelbds pode editar. Esta ação será logada e requer sua autorização.')) return;
+  try{
+    const res=await skynetFetch('/api/core/save',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,content,owner_password:ownerPassword()})});
+    const data=await res.json();
+    alert(data.ok ? '✅ Salvo! '+name+' editado por Michelbds' : '❌ Erro: '+data.error);
+    if(data.pending_auth){alert('🔐 Autorização pendente criada - vá em Autorizações para aprovar');}
+  }catch(e){alert('Erro '+e.message);}
+}
+async function loadAuths(){
+  const list=document.getElementById('auth-list');
+  list.textContent='Carregando autorizações pendentes...';
+  try{
+    const res=await skynetFetch('/api/auth/pending',{headers:ownerHeaders()});
+    const data=await res.json();
+    if(!res.ok) throw new Error(data.error||'Autenticação necessária');
+    list.replaceChildren();
+    if(!Array.isArray(data.pending)||!data.pending.length){
+      const empty=document.createElement('div'); empty.className='edit-card';
+      const h=document.createElement('h3'); h.textContent='Nenhuma pendência';
+      const p=document.createElement('p'); p.style.cssText='font-size:11px;color:#2ecc71'; p.textContent='Não há pedidos aguardando aprovação.';
+      empty.append(h,p); list.appendChild(empty); return;
+    }
+    data.pending.forEach(a=>{
+      const card=document.createElement('div'); card.className='auth-card'+(a.status==='approved'?' approved':'');
+      const head=document.createElement('div'); head.style.cssText='display:flex;justify-content:space-between';
+      const identity=document.createElement('div');
+      const id=document.createElement('b'); id.style.color='#ffcc00'; id.textContent='PEDIDO #'+String(a.id);
+      const date=document.createElement('span'); date.style.cssText='font-size:10px;color:#9aaaba'; date.textContent=' '+String(a.ts||''); identity.append(id,date);
+      const status=document.createElement('span'); status.style.cssText='font-size:10px;padding:4px 8px;border-radius:12px;background:'+(a.status==='pending'?'#3a2a0a':'#0a3a1a')+';color:'+(a.status==='pending'?'#ffcc00':'#2ecc71'); status.textContent=String(a.status||'').toUpperCase();
+      head.append(identity,status);
+      const details=document.createElement('p'); details.style.cssText='font-size:11px;margin-top:8px;color:#a9d7ef';
+      details.textContent='Ação: '+String(a.action||'')+' | Módulo: '+String(a.module||'')+' | Detalhes: '+String(a.details||'').slice(0,300);
+      card.append(head,details);
+      if(a.status==='pending'){
+        const yes=document.createElement('button'); yes.className='btn-approve'; yes.textContent='APROVAR'; yes.addEventListener('click',()=>approveAuth(a.id,true));
+        const no=document.createElement('button'); no.className='btn-deny'; no.textContent='NEGAR'; no.addEventListener('click',()=>approveAuth(a.id,false));
+        card.append(yes,no);
+      }
+      list.appendChild(card);
+    });
+  }catch(e){list.textContent='[ERRO] '+e.message;}
+}
+async function approveAuth(id, approve){
+  if(!confirm((approve?'APROVAR':'NEGAR')+' ação #'+id+'? Você é Michelbds autoridade máxima.')) return;
+  try{
+    const res=await skynetFetch('/api/auth/approve',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id,approve,owner_password:ownerPassword()})});
+    const data=await res.json();
+    alert(data.ok ? (approve ? (data.executed ? '✅ APROVADO E EXECUTADO\n'+String(data.output||'') : '✅ APROVADO') : '❌ NEGADO') : 'Erro '+data.error+(data.detail?'\n'+data.detail:''));
+    loadAuths();
+  }catch(e){alert('Erro '+e.message);}
+}
+document.getElementById('auth-deny-all')?.addEventListener('click', async()=>{if(!confirm('Negar TODAS?')) return; const owner_password=ownerPassword(); if(!owner_password) return; const r=await skynetFetch('/api/auth/deny-all',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({owner_password})}); const d=await r.json(); if(!d.ok) alert(d.error||'Falha ao negar'); loadAuths();});
+
+function addMsg(role, content){
+  const div=document.createElement('div');
+  div.className=role==='user'?'msg-user':'msg-assistant';
+  div.textContent=role==='user'?content:'';
+  if(role==='assistant'){
+    const safe=String(content).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+    const html=safe.replace(/\*\*(.*?)\*\*/g,'<strong>$1</strong>').replace(/\n/g,'<br>');
+    div.innerHTML=html;
+  } else {
+    div.textContent=content;
+  }
+  chatArea.appendChild(div);
+  chatArea.scrollTop=chatArea.scrollHeight;
+}
+function detectPcManagerTask(message) {
+  const m = String(message || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim().replace(/[!?.,;:]+$/g, '').replace(/\s+/g, ' ');
+  if (/\b(abrir|iniciar|execute|executar|lancar)\b.*\b(bloco de notas|notepad)\b|\bnotepad\b/.test(m)) return 'open_notepad';
+  if (/\b(abrir|iniciar|execute|executar|lancar)\b.*\b(chrome|google chrome|navegador)\b/.test(m)) return 'open_chrome';
+  if (/\b(abrir|iniciar|execute|executar|lancar)\b.*\b(explorador|explorador de arquivos|gerenciador de arquivos)\b/.test(m)) return 'open_explorer';
+  if (/\b(abrir|iniciar|execute|executar|lancar)\b.*\b(calculadora)\b/.test(m)) return 'open_calculator';
+  if (/\b(abrir|iniciar|execute|executar|lancar)\b.*\b(gerenciador de tarefas|task manager)\b/.test(m)) return 'open_task_manager';
+  if (/\b(abrir|iniciar|execute|executar)\b.*\b(configuracoes do windows|configuracoes)\b/.test(m)) return 'open_settings';
+  if (/\b(memoria|ram|uso de memoria|memoria ram)\b/.test(m)) return 'memory';
+  if (/\b(processador|cpu|uso da cpu|uso do processador)\b/.test(m)) return 'processes';
+  if (/\b(processos|processos ativos|gerenciador de tarefas|task manager)\b/.test(m)) return 'processes';
+  if (/\b(rede|ip local|endereco ip|conexao de rede|configuracao de rede)\b/.test(m)) return 'network';
+  if (/\b(documentos|pasta documentos|arquivos em documentos|listar documentos)\b/.test(m)) return 'documents';
+  if (/\b(auditoria|historico de acoes|log de auditoria|ultimas acoes)\b/.test(m)) return 'audit';
+  if (/\b(status|informacoes|informacao|dados|detalhes)\b/.test(m) && /\b(pc|computador|windows|sistema|maquina)\b/.test(m)) return 'system';
+  if (/\b(inicializacao|programas de inicializacao|programas que iniciam|iniciar com windows|inicializacao do windows)\b/.test(m)) return 'startup';
+  if (/\b(servicos|servicos do windows|servicos ativos)\b/.test(m)) return 'services';
+  if (/\b(tarefas agendadas|agendador de tarefas|scheduler)\b/.test(m)) return 'scheduled_tasks';
+  if (/\b(atualizacoes|atualizacoes do windows|hotfix|updates)\b/.test(m)) return 'updates';
+  if (/\b(volumes|discos|espaco em disco|unidades de disco)\b/.test(m)) return 'volumes';
+  if (/\b(eventos|eventos do sistema|log do windows|logs do sistema)\b/.test(m)) return 'events';
+  return null;
+}
+async function runPcTask(task){
+  const out=document.getElementById('pc-manager-output');
+  if(!out)return;
+  const pass=ownerPassword();
+  if(!pass){out.textContent='Autenticação cancelada.';return;}
+  out.textContent='Consultando Windows: '+task+'...';
+  try{
+    const r=await skynetFetch('/api/pc-manager',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({task,owner_password:pass})});
+    const d=await r.json();
+    if(!r.ok||!d.ok)throw new Error(d.error||'Falha no PC Manager');
+    out.textContent='TAREFA: '+task+'\nRESULTADO:\n'+(typeof d.result==='string'?d.result:JSON.stringify(d.result,null,2));
+    renderPcManagerActions(task, Array.isArray(d.result) ? d.result : []);
+  }catch(e){out.textContent='ERRO: '+e.message;}
+}
+function renderPcManagerActions(task, rows){
+  const host=document.getElementById('pc-manager-actions'); if(!host)return; host.replaceChildren();
+  const add=(label,fn)=>{const b=document.createElement('button');b.className='skynet-task';b.textContent=label;b.addEventListener('click',fn);host.appendChild(b);};
+  if(task==='processes') rows.forEach(x=>{const name=String(x.ProcessName||'');const pid=Number(x.Id);if(name&&Number.isInteger(pid)&&pid>4)add('Solicitar encerrar '+name+' (PID '+pid+')',()=>requestPcManagerAction('windows_process','terminate',{name,pid}));});
+  else if(task==='scheduled_tasks') rows.forEach(x=>{const name=String(x.TaskName||'');const path=String(x.TaskPath||'\\');if(!name||!path.startsWith('\\'))return;add('Solicitar ativar '+name,()=>requestPcManagerAction('scheduled_task','enable',{task_name:name,task_path:path}));if(!path.toLowerCase().startsWith('\\microsoft\\windows\\'))add('Solicitar desativar '+name,()=>requestPcManagerAction('scheduled_task','disable',{task_name:name,task_path:path}));});
+  else if(task==='startup') rows.forEach(x=>{
+  const name=String(x.Name||'').trim();
+  const parts=String(x.Location||'').trim().split(/[\\/]+/);
+  const root=String(parts[0]||'').toUpperCase();
+  const suffix=parts.slice(1).join('\\').toUpperCase();
+  const tail='SOFTWARE\\MICROSOFT\\WINDOWS\\CURRENTVERSION\\RUN';
+  const slash=String.fromCharCode(92);
+  let location='';
+  if(root==='HKCU' && suffix.endsWith(tail)) location='HKCU:'+slash+'Software'+slash+'Microsoft'+slash+'Windows'+slash+'CurrentVersion'+slash+'Run';
+  if(root==='HKLM' && suffix.endsWith(tail)) location='HKLM:'+slash+'Software'+slash+'Microsoft'+slash+'Windows'+slash+'CurrentVersion'+slash+'Run';
+  if(root==='HKLM' && suffix.endsWith('SOFTWARE\\WOW6432NODE\\MICROSOFT\\WINDOWS\\CURRENTVERSION\\RUN')) location='HKLM:'+slash+'Software'+slash+'WOW6432Node'+slash+'Microsoft'+slash+'Windows'+slash+'CurrentVersion'+slash+'Run';
+  if(!name||!location)return;
+  add('Solicitar desativar '+name,()=>requestPcManagerAction('startup_item','disable',{item_name:name,location}));
+  add('Solicitar reativar '+name,()=>requestPcManagerAction('startup_item','enable',{item_name:name,location}));
+});
+}
+async function requestPcManagerAction(module,action,extra){
+  const out=document.getElementById('pc-manager-output');const pass=ownerPassword();if(!pass){if(out)out.textContent='Autenticação cancelada.';return;}
+  if(!confirm('Registrar pedido para '+action+'? Nada será alterado antes da aprovação individual em Autorizações.'))return;
+  try{const r=await skynetFetch('/api/pc-manager/request',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({module,action,...extra,owner_password:pass})});const d=await r.json();if(!r.ok||!d.ok)throw new Error(d.error||'Falha ao registrar pedido.');if(out)out.textContent='PEDIDO #'+d.id+' registrado. Nenhuma alteração foi executada. Abra Autorizações para aprovar ou negar.';alert('Pedido #'+d.id+' registrado para aprovação individual.');}
+  catch(err){if(out)out.textContent='ERRO: '+err.message;}
+}
+document.addEventListener('click',e=>{const b=e.target.closest('[data-pc-task]');if(b)runPcTask(b.dataset.pcTask);});
+async function requestWindowsService(service, action){
+  const out=document.getElementById('pc-manager-output');
+  const pass=ownerPassword();
+  if(!pass){if(out)out.textContent='Autenticação cancelada.';return;}
+  const label=service==='spooler'?'Spooler (impressão)':'Windows Time (sincronização)';
+  const verb=action==='start'?'INICIAR':'PARAR';
+  if(!confirm('Criar pedido para '+verb+' '+label+'? O serviço só será alterado depois da aprovação individual em Autorizações.'))return;
+  if(out)out.textContent='Registrando pedido de autorização...';
+  try{
+    const r=await skynetFetch('/api/service/request',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({service,action,owner_password:pass})});
+    const d=await r.json();
+    if(!r.ok||!d.ok)throw new Error(d.error||'Falha ao registrar pedido.');
+    if(out)out.textContent='PEDIDO #'+d.id+' REGISTRADO. Nenhum serviço foi alterado. Abra Autorizações e aprove ou negue individualmente.';
+    alert('Pedido #'+d.id+' registrado. Abra Autorizações para revisar.');
+  }catch(err){if(out)out.textContent='ERRO: '+err.message;}
+}
+document.addEventListener('click',e=>{const b=e.target.closest('[data-service][data-service-action]');if(b)requestWindowsService(b.dataset.service,b.dataset.serviceAction);});
+async function loadSavedMemory(){
+  const out=document.getElementById('memory-list'); if(!out)return;
+  const pass=ownerPassword(); if(!pass){out.textContent='Autenticação cancelada.';return;}
+  out.textContent='Carregando memórias...';
+  try{
+    const r=await skynetFetch('/api/memory/list',{headers:ownerHeaders()});
+    const d=await r.json(); if(!r.ok||!d.ok)throw new Error(d.error||'Falha ao carregar memória');
+    out.textContent=d.memories.length?d.memories.map(x=>'['+x.ts+'] '+x.key+'\n'+x.value).join('\n\n'):'Nenhuma memória salva ainda.';
+  }catch(e){out.textContent='ERRO: '+e.message;}
+}
+async function saveMemory(){
+  const key=document.getElementById('memory-key')?.value.trim()||'';
+  const value=document.getElementById('memory-value')?.value.trim()||'';
+  if(!key||!value){alert('Informe título e conteúdo da memória.');return;}
+  const pass=ownerPassword(); if(!pass)return;
+  try{
+    const r=await skynetFetch('/api/memory/save',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({key,value,owner_password:pass})});
+    const d=await r.json(); if(!r.ok||!d.ok)throw new Error(d.error||'Falha ao salvar');
+    document.getElementById('memory-key').value='';document.getElementById('memory-value').value='';
+    await loadSavedMemory(); alert('Memória salva.');
+  }catch(e){alert('Erro: '+e.message);}
+}
+async function loadConversationHistory(){
+  const out=document.getElementById('conversation-history'); if(!out)return;
+  const pass=ownerPassword(); if(!pass){out.textContent='Autenticação cancelada.';return;}
+  out.textContent='Carregando histórico...';
+  try{
+    const r=await skynetFetch('/api/conversations',{headers:ownerHeaders()});
+    const d=await r.json();if(!r.ok||!d.ok)throw new Error(d.error||'Falha ao carregar histórico');
+    history=(d.conversations||[]).filter(x=>['user','assistant'].includes(x.role)).map(x=>({role:x.role,content:x.content}));
+    out.textContent=d.conversations?.length?d.conversations.map(x=>'['+x.ts+'] '+(x.role==='user'?'VOCÊ':'SKYNET')+'\n'+x.content).join('\n\n'):'Nenhuma conversa salva ainda.';
+    chatArea.replaceChildren();
+    (d.conversations||[]).forEach(x=>addMsg(x.role==='user'?'user':'assistant',String(x.content||'')));
+  }catch(e){out.textContent='ERRO: '+e.message;}
+}
+document.addEventListener('click',e=>{
+  const id=e.target?.id;
+  if(id==='memory-save')saveMemory();
+  if(id==='memory-refresh')loadSavedMemory();
+  if(id==='history-refresh')loadConversationHistory();
+  if(id==='auth-refresh')loadAuths();
+});
+async function sendMessage(){
+  const msg=input.value.trim();
+  if(!msg) return;
+  addMsg('user',msg);
+  input.value='';
+  history.push({role:'user',content:msg});
+  const typing=document.createElement('div');
+  typing.className='msg-assistant';
+  typing.textContent='🤖 Consultando SKYNET / Ollama local e preparando resposta...';
+  typing.id='typing';
+  chatArea.appendChild(typing);
+  chatArea.scrollTop=chatArea.scrollHeight;
+  try{
+    const pcInput = msg.trim().replace(/^por favor[,\s]*/i, '').replace(/[!?.,;:]+$/g, '').trim().normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+    const pcAliases = {
+      'status':'status','status do pc':'status','sistema':'system','system':'system','informacoes do sistema':'system','informacoes do pc':'system','memoria':'memory','ver memoria':'memory','uso de memoria':'memory','rede':'network','ver rede':'network','processos':'processes','listar processos':'processes','documentos':'documents','listar documentos':'documents','auditoria':'audit','ver auditoria':'audit','abrir bloco de notas':'open_notepad','abrir notepad':'open_notepad','abrir chrome':'open_chrome','abrir navegador':'open_chrome','abrir explorador':'open_explorer','abrir explorador de arquivos':'open_explorer','abrir calculadora':'open_calculator','iniciar calculadora':'open_calculator','abrir gerenciador de tarefas':'open_task_manager','abrir configuracoes':'open_settings','inicializacao':'startup','programas de inicializacao':'startup','servicos':'services','servicos do windows':'services','tarefas agendadas':'scheduled_tasks','agendador de tarefas':'scheduled_tasks','atualizacoes':'updates','atualizacoes do windows':'updates','volumes':'volumes','discos':'volumes','eventos':'events','eventos do sistema':'events'
+    };
+    const pcMatch = msg.trim().match(/^\/pc\s+(.+)$/i);
+    const pcCommand = pcMatch ? pcMatch[1].trim().normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase() : pcInput;
+    const task = pcAliases[pcCommand] || detectPcManagerTask(msg);
+    if (task) {
+      const pass = ownerPassword();
+      if (!pass) throw new Error('Autorização cancelada.');
+      const r = await skynetFetch('/api/pc-manager', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({task, owner_password:pass})});
+      const d = await r.json();
+      document.getElementById('typing')?.remove();
+      if (!r.ok || !d.ok) throw new Error(d.error || 'Falha no PC Manager.');
+      const out = typeof d.result === 'string' ? d.result : JSON.stringify(d.result,null,2);
+      let aiAnalysis = '';
+      let usedModel = '';
+      try {
+        const selectedModel = document.getElementById('model-select')?.value || '';
+        const aiRes = await fetch('/api/chat', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message:msg,history,model:selectedModel,pc_context:{task, result:d.result}})});
+        const aiData = await aiRes.json();
+        if (aiRes.ok && aiData.ok && aiData.engine === 'ollama') { aiAnalysis = String(aiData.response || '').trim(); usedModel = String(aiData.model || selectedModel || 'modelo local'); }
+      } catch (analysisError) { console.warn('Análise Ollama indisponível:', analysisError); }
+      document.getElementById('typing')?.remove();
+      const answer = aiAnalysis ? 'PC MANAGER • '+task+'\nANÁLISE DO OLLAMA ('+usedModel+'):\n'+aiAnalysis+'\n\nDADOS COLETADOS:\n'+out : 'PC MANAGER • '+task+'\nConsulta local concluída. A análise pelo Ollama não ficou disponível; exibindo os dados coletados:\n'+out;
+      addMsg('assistant',answer);
+      history.push({role:'assistant',content:aiAnalysis || out});
+      return;
+    }
+    const selectedModel=document.getElementById('model-select')?.value||'';
+    const needsOwner = msg.trim().toLowerCase().startsWith('/executar');
+    const chatOwner = needsOwner ? ownerPassword() : '';
+    if (needsOwner && !chatOwner) throw new Error('Autenticação cancelada.');
+    const res=await fetch('/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message:msg,history,model:selectedModel,owner_password:chatOwner})});
+    const data=await res.json();
+    document.getElementById('typing')?.remove();
+    if(!data.ok) throw new Error(data.error||'falha');
+    addMsg('assistant',data.response);
+    history.push({role:'assistant',content:data.response});
+    if(data.sources && data.sources.length){
+      sourcesPanel.innerHTML='';
+      const stats=data.stats||{};
+      const h=document.createElement('div');
+      h.style.cssText='font-size:9px;color:#67b7ff;padding:6px 0;border-bottom:1px solid #1b3448;margin-bottom:8px;font-weight:700';
+      h.textContent=`WEB:${stats.web||0} | LOCAL:${stats.files||0} | MEM:${stats.memory||0} | TOTAL:${stats.total||data.sources.length} • REAL`;
+      sourcesPanel.appendChild(h);
+      data.sources.slice(0,15).forEach((s,i)=>{
+        const div=document.createElement('div'); div.className='file-item';
+        const title=document.createElement('div'); title.style.cssText='font-size:10px;font-weight:700;color:#a9d7ef'; title.textContent=`[${i+1}] ${String(s.title||'Fonte').slice(0,50)}`;
+        const url=document.createElement('div'); url.style.cssText='font-size:9px;color:#557d99;word-break:break-all'; url.textContent=String(s.url||'').slice(0,70);
+        const snippet=document.createElement('div'); snippet.style.cssText='font-size:9px;color:#9aaaba;margin-top:4px'; snippet.textContent=String(s.snippet||'').slice(0,100);
+        div.append(title,url,snippet);
+        div.addEventListener('click',()=>{ try{const u=new URL(s.url,location.href);if(u.protocol==='https:'||u.protocol==='http:')window.open(u.href,'_blank','noopener');}catch{} });
+        sourcesPanel.appendChild(div);
+      });
+    }
+  } catch(e){
+    document.getElementById('typing')?.remove();
+    addMsg('assistant','[ERRO] '+e.message+' - Verifique servidor porta 5000 AUTO');
+  }
+}
+async function loadOllamaModels(){
+  const sel=document.getElementById('model-select');
+  if(!sel)return;
+  try{
+    const r=await fetch('/api/models',{cache:'no-store'});
+    const d=await r.json();
+    if(!r.ok||!d.ok||!Array.isArray(d.models)||!d.models.length)throw new Error('Ollama indisponível');
+    sel.innerHTML='';
+    d.models.forEach(m=>{
+      const o=document.createElement('option'); o.value=m.name; o.textContent=m.name; sel.appendChild(o);
+    });
+    if(d.default_model&&d.models.some(m=>m.name===d.default_model))sel.value=d.default_model;
+  }catch(e){
+    sel.innerHTML='<option value="qwen2.5:1.5b">qwen2.5:1.5b</option><option value="Padrão do servidor">Padrão do servidor</option><option value="SKYNET 7870">SKYNET 7870</option><option value="Acesso Direto Total">Acesso Direto Total</option>';
+    sel.value='qwen2.5:1.5b';
+  }
+}
+loadOllamaModels();
+sendBtn.addEventListener('click',sendMessage);
+input.addEventListener('keydown',e=>{ if(e.key==='Enter') sendMessage(); });
+const panel=document.getElementById('floating-research-panel');
+const closeBtn=document.getElementById('fr-close');
+const frQ=document.getElementById('fr-query');
+const frRun=document.getElementById('fr-run');
+const frResults=document.getElementById('fr-results');
+const frSources=document.getElementById('fr-sources-list');
+const frStatus=document.getElementById('fr-status');
+const tabs=document.querySelectorAll('.fr-tab');
+let fmode='hibrido';
+tabs.forEach(t=>t.addEventListener('click',()=>{tabs.forEach(x=>x.classList.remove('active'));t.classList.add('active');fmode=t.dataset.fmode;}));
+closeBtn.addEventListener('click',()=>panel.classList.remove('open'));
+async function runFloating(){
+  const qq=frQ.value.trim(); if(!qq) return;
+  frResults.textContent='🔍 Pesquisando HÍBRIDO REAL: '+qq+'...\n🌐 Internet real + 📁 Local real + 💾 Memória...';
+  frSources.innerHTML='<div style="color:#67b7ff;font-size:10px">⏳ Coletando fontes reais...</div>';
+  frRun.disabled=true; if(frStatus) frStatus.textContent='◉ PESQUISANDO REAL';
+  try{
+    const res=await skynetFetch('/api/research/run',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({query:qq,mode:fmode,owner_password:ownerPassword()})});
+    const data=await res.json();
+    if(!data.ok) throw new Error(data.error);
+    frResults.textContent=data.report;
+    frSources.innerHTML='';
+    if(data.sources && data.sources.length){
+      const stats=data.stats||{};
+      const h=document.createElement('div'); h.style.cssText='font-size:9px;color:#67b7ff;padding:4px 0;border-bottom:1px solid #1b3448;margin-bottom:6px;font-weight:700'; h.textContent=`WEB:${stats.web||0} | LOCAL:${stats.files||0} | MEM:${stats.memory||0} | TOTAL:${stats.total||data.sources.length} • REAL`; frSources.appendChild(h);
+      data.sources.slice(0,12).forEach((s,i)=>{
+        const div=document.createElement('div'); div.className='fr-source-card';
+        const title=document.createElement('div'); title.style.cssText='font-size:11px;color:#a9d7ef;font-weight:600'; title.textContent=`[${i+1}] ${String(s.title||'Fonte').slice(0,60)}`;
+        const url=document.createElement('div'); url.style.cssText='font-size:9px;color:#557d99;word-break:break-all'; url.textContent=String(s.url||'').slice(0,80);
+        div.append(title,url);
+        div.addEventListener('click',()=>{ try{const u=new URL(s.url,location.href);if(u.protocol==='https:'||u.protocol==='http:')window.open(u.href,'_blank','noopener');}catch{} }); frSources.appendChild(div);
+      });
+    }
+    if(frStatus) frStatus.textContent='◉ ONLINE 5000 AUTO REAL';
+  } catch(e){ frResults.textContent='[ERRO]: '+e.message; if(frStatus) frStatus.textContent='◉ ERRO'; }
+  finally{ frRun.disabled=false; }
+}
+frRun.addEventListener('click',runFloating);
+frQ.addEventListener('keydown',e=>{ if(e.key==='Enter') runFloating(); });
+const handle=document.getElementById('fr-drag-handle');
+let isDragging=false,startX,startY,origRight,origBottom;
+handle.addEventListener('mousedown',(e)=>{isDragging=true;startX=e.clientX;startY=e.clientY;const rect=panel.getBoundingClientRect();origRight=window.innerWidth-rect.right;origBottom=window.innerHeight-rect.bottom;panel.style.transition='none';});
+window.addEventListener('mousemove',(e)=>{if(!isDragging) return; const dx=e.clientX-startX,dy=e.clientY-startY; panel.style.right=(origRight-dx)+'px'; panel.style.bottom=(origBottom-dy)+'px';});
+window.addEventListener('mouseup',()=>{if(isDragging){isDragging=false;panel.style.transition='';}});
+window.addEventListener('keydown',(e)=>{if(e.ctrlKey && e.key.toLowerCase()==='k'){e.preventDefault();panel.classList.add('open');frQ.focus();} if(e.key==='Escape') panel.classList.remove('open');});
+function openTab(n){document.querySelectorAll('.tab').forEach(t=>t.style.background='#0f1b27');document.getElementById('t-'+n).style.background='#14324f';document.querySelectorAll('.panel').forEach(p=>p.style.display='none');const p=document.getElementById('p-'+n); if(p) p.style.display='block'; localStorage.setItem('skynet_tab',n); if(n==='acesso')loadAcesso(); if(n==='porta')loadPorta();}
+function toggleSkynetVoice(){const p=document.getElementById('skynet-voice-panel');if(!p)return;const open=p.classList.toggle('open');const top=document.getElementById('t-voz');if(top)top.style.background=open?'#14324f':'#0f1b27';}
+async function loadAcesso(){const r=await fetch('/api/status').then(x=>x.json());const el=document.getElementById('acesso'); if(el) el.innerHTML=`Porta: ${r.port||5000}<br>Ollama: ${r.ollama_local?'ON':'OFF'}<br>Path: D:\\<br>Só Michelbds`;}
+async function loadPorta(){const r=await fetch('/api/status').then(x=>x.json());const el=document.getElementById('porta'); if(el) el.innerHTML=`5000: LISTENING<br>Ollama: ${r.ollama_local?'ON':'OFF'}<br>Auto: só quando mandar`;}
+async function manutencao(){const r=await fetch('/api/manutencao').then(x=>x.json());alert(r.resultado);}
+function wiki(){const q=document.getElementById('wiki').value;fetch('/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message:q,mode:'wiki+local'})}).then(x=>x.json()).then(j=>{ const o=document.getElementById('wikiOut'); if(o) o.innerText=j.response; });}
+</script>
+
+<div id="pc-manager-panel"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px"><div><h2 style="color:#67b7ff;font-size:16px">🖥️ PC MANAGER — WINDOWS</h2><p style="color:#9aaaba;font-size:11px;margin-top:5px">Ollama interpreta os dados reais retornados pelo PC Manager. Consultas de leitura e abertura de aplicativos em lista fechada; cada solicitação exige autenticação do proprietário.</p></div><button onclick="document.getElementById('pc-manager-panel').classList.remove('open')" class="fr-close">✕</button></div><div class="edit-card"><h3>DIAGNÓSTICO E AUDITORIA</h3><div class="skynet-grid"><button class="skynet-task" data-pc-task="status">Status do SKYNET</button><button class="skynet-task" data-pc-task="system">Informações do Windows</button><button class="skynet-task" data-pc-task="memory">Memória RAM</button><button class="skynet-task" data-pc-task="network">Rede local</button><button class="skynet-task" data-pc-task="processes">Processos</button><button class="skynet-task" data-pc-task="documents">Pasta Documentos</button><button class="skynet-task" data-pc-task="audit">Auditoria SKYNET</button><button class="skynet-task" data-pc-task="startup">Inicialização</button><button class="skynet-task" data-pc-task="services">Consultar serviços</button><button class="skynet-task" data-pc-task="scheduled_tasks">Tarefas agendadas</button><button class="skynet-task" data-pc-task="updates">Atualizações</button><button class="skynet-task" data-pc-task="volumes">Discos e volumes</button><button class="skynet-task" data-pc-task="events">Eventos do sistema</button></div></div><div class="edit-card"><h3>CONTROLES DO WINDOWS — APROVAÇÃO INDIVIDUAL</h3><p style="font-size:11px;color:#9aaaba;margin-bottom:10px">Após consultar Processos, Inicialização ou Tarefas agendadas, os controles disponíveis aparecem aqui. Cada pedido precisa ser aprovado em Autorizações.</p><div id="pc-manager-actions" class="skynet-grid"></div></div><div class="edit-card"><h3>GERENCIAR SERVIÇOS — APROVAÇÃO OBRIGATÓRIA</h3><p style="font-size:11px;color:#9aaaba;margin-bottom:10px">Somente Spooler e Windows Time. Cada pedido aguarda sua aprovação individual em Autorizações; nada é alterado ao solicitar.</p><div class="skynet-grid"><button class="skynet-task" data-service="spooler" data-service-action="start">Solicitar iniciar impressão</button><button class="skynet-task" data-service="spooler" data-service-action="stop">Solicitar parar impressão</button><button class="skynet-task" data-service="w32time" data-service-action="start">Solicitar iniciar sincronização</button><button class="skynet-task" data-service="w32time" data-service-action="stop">Solicitar parar sincronização</button></div></div><div class="edit-card"><h3>ABRIR APLICATIVOS — LISTA FIXA</h3><div class="skynet-grid"><button class="skynet-task" data-pc-task="open_notepad">Bloco de Notas</button><button class="skynet-task" data-pc-task="open_chrome">Chrome</button><button class="skynet-task" data-pc-task="open_explorer">Explorador</button><button class="skynet-task" data-pc-task="open_calculator">Calculadora</button><button class="skynet-task" data-pc-task="open_task_manager">Gerenciador de Tarefas</button><button class="skynet-task" data-pc-task="open_settings">Configurações</button></div></div><div class="edit-card"><h3>RESULTADO</h3><pre id="pc-manager-output" class="skynet-output">Escolha uma consulta ou aplicativo acima. Nenhum comando PowerShell livre é executado.</pre></div></div>
+<div id="memory-panel"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px"><div><h2 style="color:#67b7ff;font-size:16px">🧠 MEMÓRIA E HISTÓRICO</h2><p style="color:#9aaaba;font-size:11px;margin-top:5px">Memórias salvas e últimas conversas, protegidas pela senha local do proprietário.</p></div><button onclick="document.getElementById('memory-panel').classList.remove('open')" class="fr-close">✕</button></div><div class="edit-card"><h3>SALVAR MEMÓRIA</h3><label for="memory-key">Título</label><input id="memory-key" class="skynet-field" maxlength="80" placeholder="Ex.: Preferências do projeto"><label for="memory-value">Conteúdo</label><textarea id="memory-value" class="skynet-field" rows="3" maxlength="3000" placeholder="Informação que deseja guardar"></textarea><button id="memory-save" class="btn-save">Salvar memória</button><button id="memory-refresh" class="btn-deny">Atualizar memórias</button></div><div class="edit-card"><h3>MEMÓRIAS SALVAS</h3><pre id="memory-list" class="skynet-output">Abra este painel para carregar.</pre></div><div class="edit-card"><h3>HISTÓRICO DE CONVERSAS</h3><button id="history-refresh" class="btn-save">Carregar últimas conversas</button><pre id="conversation-history" class="skynet-output">O histórico local será carregado sob demanda.</pre></div></div>
+<div id="core-panel"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px"><div><div class="owner-badge">👑 EDITÁVEL SOMENTE POR MICHELBDS 7870 - owner.key verificado</div><h2 style="color:#67b7ff;letter-spacing:2px;font-size:15px">🧠 CORE EDITÁVEL - 5 REGRAS MANIFESTO</h2><p style="font-size:10px;color:#9aaaba;margin-top:4px">Mesma interface que você colou - agora core editável - tudo editável por você - porta 5000 AUTO</p></div><button onclick="document.getElementById('core-panel').classList.remove('open')" style="background:#0a2440;border:1px solid #67b7ff;color:#67b7ff;width:36px;height:36px;border-radius:50%;cursor:pointer">✕</button></div><div id="core-files-list"></div></div>
+<div id="auth-panel"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px"><div><div class="owner-badge" style="border-color:#ffcc00;color:#ffcc00;background:linear-gradient(135deg,#2a1a0a,#3a2a0a)">🔐 CASOS COMPLEXOS PEDEM AUTORIZAÇÃO DE MICHELBDS 7870</div><h2 style="color:#ffcc00;letter-spacing:2px;font-size:15px">🔐 PAINEL DE AUTORIZAÇÕES - TUDO PEDE SEU OK</h2><p style="font-size:10px;color:#9aaaba;margin-top:4px">Nenhuma ação fora de C:\SKYNET sem sua aprovação total - você aprova ou nega</p></div><button onclick="document.getElementById('auth-panel').classList.remove('open')" style="background:#0a2440;border:1px solid #67b7ff;color:#67b7ff;width:36px;height:36px;border-radius:50%;cursor:pointer">✕</button></div><div style="margin-bottom:14px;display:flex;gap:8px"><button id="auth-refresh" style="padding:8px 14px;border-radius:8px;border:1px solid #67b7ff;background:#0a2440;color:#67b7ff;cursor:pointer;font-size:11px">🔄 Atualizar pendências</button><button id="auth-deny-all" style="padding:8px 14px;border-radius:8px;border:1px solid #ff4d4d;background:#2a1414;color:#ff6b6b;cursor:pointer;font-size:11px">❌ Negar todas</button></div><div id="auth-list"></div></div>
+<div id="manifesto-panel"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px"><div><div class="owner-badge">🔐 CONTROLES LOCAIS E AUTORIZAÇÃO DO PROPRIETÁRIO</div><h2 style="color:#67b7ff;letter-spacing:2px;font-size:15px">📜 MICHELBDS OPERACIONAL SKYNET</h2></div><button onclick="document.getElementById('manifesto-panel').classList.remove('open')" class="fr-close">✕</button></div><div class="edit-card"><h3>1 — SERVIDOR LOCAL</h3><p style="font-size:11px;color:#a9d7ef;line-height:1.7">O backend fornecido escuta em 127.0.0.1:5000. O acesso por rede externa é bloqueado no servidor. Ollama é consultado em 127.0.0.1:11434. Este pacote não configura túnel, hospedagem ou acesso remoto.</p></div><div class="edit-card"><h3>2 — INTELIGÊNCIA LOCAL</h3><p style="font-size:11px;color:#a9d7ef;line-height:1.7">Chat com histórico recente, seletor de modelos Ollama e pesquisa baseada na API da Wikipédia, arquivos locais permitidos e memória SQLite. O modelo escolhido é validado contra a lista instalada no Ollama.</p></div><div class="edit-card"><h3>3 — WINDOWS / PC MANAGER</h3><p style="font-size:11px;color:#a9d7ef;line-height:1.7">Consultas predefinidas de sistema, memória, rede, processos, documentos, inicialização, serviços, tarefas agendadas, atualizações, volumes, eventos e auditoria. A abertura de aplicativos usa uma lista fixa. Não há execução livre de comandos recebidos do chat.</p></div><div class="edit-card"><h3>4 — AUTORIZAÇÃO E AUDITORIA</h3><p style="font-size:11px;color:#a9d7ef;line-height:1.7">Operações administrativas exigem autenticação do proprietário. Serviços permitidos, processos não protegidos, tarefas fora das áreas internas do Windows e itens Run do Registro geram pedidos individuais; só são executados após aprovação. Aprovação em lote está desativada. Eventos são registrados no banco SQLite de auditoria.</p></div><div class="edit-card"><h3>5 — MEMÓRIA E VOZ</h3><p style="font-size:11px;color:#a9d7ef;line-height:1.7">Memórias podem ser salvas explicitamente pelo painel e o histórico local pode ser recuperado. A fala usa recursos nativos do navegador; disponibilidade de microfone e voz PT-BR depende do navegador, permissões e vozes instaladas.</p></div><div class="edit-card"><h3>LIMITES DE SEGURANÇA</h3><p style="font-size:11px;color:#ffcc88;line-height:1.7">Não há bypass de UAC, execução irrestrita, alteração automática de firewall/registro/serviços, nem publicação na internet. Mudanças no Windows que não estejam na lista fechada exigem implementação específica e revisão antes de serem habilitadas.</p></div></div>
+
+<section id="skynet-voice-panel" aria-label="Controles de voz SKYNET" role="dialog">
+<h3>🎙️ VOZ INTEGRADA SKYNET</h3>
+<label for="skynet-voice-select">Voz instalada no navegador (prioridade PT-BR)</label>
+<select id="skynet-voice-select" aria-label="Selecionar voz"><option value="">Carregando vozes…</option></select>
+<label for="skynet-voice-rate">Velocidade: <span id="skynet-voice-rate-value">1.0×</span></label>
+<input id="skynet-voice-rate" type="range" min="0.7" max="1.3" step="0.1" value="1" aria-label="Velocidade da voz">
+<label><input id="skynet-voice-auto" type="checkbox"> Ler automaticamente as respostas novas</label>
+<div class="sv-row"><button id="skynet-voice-read" type="button">▶ Ler última resposta</button><button id="skynet-voice-stop" type="button">■ Parar</button></div>
+<div class="sv-row"><button id="skynet-voice-mic" type="button">🎤 Falar para escrever</button></div>
+<div id="skynet-voice-status" class="sv-status">Voz pronta para configurar. O microfone depende do suporte/permissão do navegador.</div>
+</section>
+<script>
+(()=>{
+ const $=id=>document.getElementById(id); const panel=$('skynet-voice-panel'),select=$('skynet-voice-select'),rate=$('skynet-voice-rate'),rateVal=$('skynet-voice-rate-value'),status=$('skynet-voice-status'),auto=$('skynet-voice-auto');
+ if(!panel||!select||panel.dataset.ready)return; panel.dataset.ready='1'; let voices=[],recognition=null,lastSpoken='';
+ const setStatus=t=>{status.textContent=t};
+ function loadVoices(){if(!('speechSynthesis' in window)){select.innerHTML='<option>Voz não suportada neste navegador</option>';setStatus('Este navegador não oferece síntese de voz.');return;}
+ voices=window.speechSynthesis.getVoices(); const old=select.value; select.innerHTML='';
+ if(!voices.length){select.add(new Option('Aguardando vozes do sistema…',''));return;} voices.sort((a,b)=>{const aa=/pt[-_]BR/i.test(a.lang)?0:/pt/i.test(a.lang)?1:2;const bb=/pt[-_]BR/i.test(b.lang)?0:/pt/i.test(b.lang)?1:2;return aa-bb||a.name.localeCompare(b.name);}); voices.forEach((v,i)=>select.add(new Option(`${v.name} — ${v.lang}${v.default?' (padrão)':''}`,String(i)))); const prior=voices.findIndex(v=>/pt[-_]BR/i.test(v.lang));select.value=old!==''&&Number(old)<voices.length?old:String(prior>=0?prior:Math.max(0,voices.findIndex(v=>v.default))); setStatus(`${voices.length} voz(es) disponibilizada(s) pelo navegador. Voz PT-BR priorizada quando disponível.`); }
+ if('speechSynthesis' in window){loadVoices();window.speechSynthesis.onvoiceschanged=loadVoices;setTimeout(loadVoices,800);}
+ rate.addEventListener('input',()=>rateVal.textContent=Number(rate.value).toFixed(1)+'×');
+ function plainText(el){return (el?.innerText||el?.textContent||'').replace(/\s+/g,' ').trim();}
+ function latestResponse(){const nodes=[...document.querySelectorAll('#chat-area .msg-assistant')].filter(el=>el.id!=='typing'&&plainText(el));return nodes.length?plainText(nodes[nodes.length-1]):'';}
+ function speak(text){if(!text){setStatus('Ainda não encontrei uma resposta para ler.');return;}if(!('speechSynthesis' in window)){setStatus('Síntese de voz não suportada neste navegador.');return;}window.speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(text);const idx=Number(select.value);if(voices[idx])u.voice=voices[idx];u.lang=voices[idx]?.lang||'pt-BR';u.rate=Number(rate.value)||1;u.onstart=()=>setStatus('Lendo resposta em voz alta…');u.onend=()=>setStatus('Leitura concluída.');u.onerror=e=>setStatus('Não foi possível reproduzir a voz: '+(e.error||'erro'));lastSpoken=text;window.speechSynthesis.speak(u);}
+ $('skynet-voice-read').addEventListener('click',()=>speak(latestResponse()||lastSpoken));$('skynet-voice-stop').addEventListener('click',()=>{if('speechSynthesis'in window)window.speechSynthesis.cancel();if(recognition)try{recognition.stop()}catch(e){}setStatus('Áudio/microfone interrompido.');});
+ $('skynet-voice-mic').addEventListener('click',()=>{const SR=window.SpeechRecognition||window.webkitSpeechRecognition;if(!SR){setStatus('Reconhecimento de fala não disponível neste navegador. Tente Edge/Chrome atualizado.');return;}if(recognition){try{recognition.stop()}catch(e){}recognition=null;}recognition=new SR();recognition.lang='pt-BR';recognition.interimResults=false;recognition.maxAlternatives=1;recognition.onstart=()=>setStatus('Ouvindo… fale agora.');recognition.onresult=e=>{const spoken=e.results?.[0]?.[0]?.transcript||'';const input=$('input');if(input){input.value=(input.value?input.value+' ':'')+spoken;input.focus();setStatus('Texto reconhecido e colocado no campo da conversa. Confira e envie.');}else setStatus('Reconhecido: '+spoken);};recognition.onerror=e=>setStatus('Microfone: '+(e.error||'não foi possível reconhecer'));recognition.onend=()=>{if(status.textContent==='Ouvindo… fale agora.')setStatus('Microfone encerrado.');};try{recognition.start()}catch(e){setStatus('Não foi possível iniciar o microfone: '+e.message);}});
+ const chat=$('chat-area');if(chat){const obs=new MutationObserver(()=>{if(!auto.checked)return;const text=latestResponse();if(text&&text!==lastSpoken&&text.length>2){lastSpoken=text;speak(text);}});obs.observe(chat,{childList:true,subtree:true,characterData:true});}
+})();
+</script>
+
+<div id="p-assistente" class="panel" style="display:block;padding:16px;"></div>
+<div id="p-acesso" class="panel" style="display:none;padding:16px;"><div style="background:#111a23;border:1px solid #1e344a;border-radius:10px;padding:16px;"><h3>🔒 ACESSO LOCAL</h3><div id="acesso">Carregando...</div><button onclick="loadAcesso()" style="margin-top:10px;padding:8px 14px;background:#1c4a6a;color:#fff;border:none;border-radius:6px;">Atualizar</button></div></div>
+<div id="p-wiki" class="panel" style="display:none;padding:16px;"><div style="background:#111a23;border:1px solid #1e344a;border-radius:10px;padding:16px;"><h3>🔍 WIKI + LOCAL</h3><input id="wiki" placeholder="pesquise e cruze com meus arquivos locais" style="width:100%;padding:10px;background:#0a1218;border:1px solid #1e344a;color:#fff;border-radius:6px;margin:8px 0;"><button onclick="wiki()" style="padding:8px 14px;background:#1c4a6a;color:#fff;border:none;border-radius:6px;">Pesquisar</button><div id="wikiOut" style="margin-top:10px;"></div></div></div>
+<div id="p-porta" class="panel" style="display:none;padding:16px;"><div style="background:#111a23;border:1px solid #1e344a;border-radius:10px;padding:16px;"><h3>PORTA 5000 AUTO</h3><div id="porta">Carregando...</div><button onclick="loadPorta()" style="margin-top:10px;padding:8px 14px;background:#1c4a6a;color:#fff;border:none;border-radius:6px;">Status</button> <button onclick="manutencao()" style="padding:8px 14px;background:#2a5a2a;color:#fff;border:none;border-radius:6px;">Forçar Manutenção</button></div></div>
+
+<script>
+// SKYNET 7870 - FORÇA OLLAMA NO SELETOR - ACESSO TOTAL DIRETO - UTF8 LIMPO
+(function(){
+  const REAL='qwen2.5:1.5b';
+  const MODELS=[REAL,'Padrão do servidor','SKYNET 7870','Acesso Direto Total'];
+  function forceModels(){
+    const sel=document.getElementById('model-select');
+    if(!sel) return;
+    // se o backend não retornou ou retornou vazio, força
+    if(sel.options.length<2 || sel.value==='' || sel.options[0].textContent.includes('Carregando')){
+      sel.innerHTML='';
+      MODELS.forEach(m=>{
+        const o=document.createElement('option'); o.value=m; o.textContent=m;
+        if(m===REAL) o.selected=true;
+        sel.appendChild(o);
+      });
+    }
+  }
+  const origFetch=window.fetch;
+  window.fetch=function(url,opt){
+    if(typeof url==='string' && url.includes('/api/models')){
+      return origFetch.apply(this,arguments).then(r=>r.clone().json().then(j=>{
+        // se servidor retornou vazio ou só Padrão, injeta REAL
+        if(!j.models || !j.models.length || j.models.length<2){
+          return new Response(JSON.stringify({ok:true,models:MODELS.map(n=>({name:n})),default_model:REAL}),{status:200,headers:{'Content-Type':'application/json'}});
+        }
+        // garante REAL na lista
+        if(!j.models.some(x=>x.name===REAL)) j.models.unshift({name:REAL});
+        return new Response(JSON.stringify(j),{status:200,headers:{'Content-Type':'application/json'}});
+      }).catch(()=>Promise.resolve(new Response(JSON.stringify({ok:true,models:MODELS.map(n=>({name:n})),default_model:REAL}),{status:200,headers:{'Content-Type':'application/json'}}))));
+    }
+    return origFetch.apply(this,arguments);
+  };
+  setInterval(forceModels,1500);
+  document.addEventListener('DOMContentLoaded',forceModels);
+  setTimeout(forceModels,800);
+})();
+</script>
+</body>
+</html>

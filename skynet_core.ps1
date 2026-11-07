@@ -1,155 +1,108 @@
-$Global:FilaVoz = [System.Collections.Queue]::Synchronized((New-Object System.Collections.Queue))
-function Falar-Skynet([string]$Texto) {
-    if ([string]::IsNullOrWhiteSpace($Texto)) { return }
-    $Global:FilaVoz.Enqueue($Texto)
-    if ($Synthesizer.State -ne 'Speaking' -and $Global:FilaVoz.Count -gt 0) {
-        $Prox = $Global:FilaVoz.Dequeue()
-        $Synthesizer.SpeakAsync($Prox) | Out-Null
-    }
-}
-Register-ObjectEvent -InputObject $Synthesizer -EventName SpeakCompleted -Action {
-    if ($Global:FilaVoz.Count -gt 0) {
-        $Prox = $Global:FilaVoz.Dequeue()
-        $Event.Sender.SpeakAsync($Prox) | Out-Null
-    }
-} | Out-Null
-
-﻿# Configura��es Avan�adas Skynet Core v3.6.0 + Deep Network Scan
+# Configurações Iniciais
 $Port = 8080
 $Url = "http://localhost:$Port/"
-$DbDir = "C:\SkynetPowerShell\database"
-$OllamaUri = "http://127.0.0"
-$SecretToken = "SKYNET-66827-FUSAO-TOTAL"
-$MaxLogs = 100
+$DbDir = Join-Path $PSScriptRoot "database"
 
-$global:SystemUpdated = $false
-
+# Cria a pasta do banco de dados se não existir
 if (-not (Test-Path $DbDir)) { New-Item -ItemType Directory -Path $DbDir | Out-Null }
 
-Add-Type -AssemblyName System.Speech
-Add-Type -AssemblyName System.Runtime.WindowsRuntime
-$Synthesizer = New-Object System.Speech.Synthesis.SpeechSynthesizer
-
-function Enviar-Toast ($Titulo, $Mensagem) {
-    try {
-        $Template = @"
-<toast><visual><binding template="ToastGeneric">
-    <text>$Titulo</text><text>$Mensagem</text>
-</binding></visual></toast>
-"@
-        $Xml = New-Object Windows.Data.Xml.Dom.XmlDocument
-        $Xml.LoadXml($Template)
-        $Toast = New-Object Windows.UI.Notifications.ToastNotification($Xml)
-        [Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier("Skynet Central").Show($Toast)
-    } catch {}
-}
-
-function Executar-LogRotation {
-    try {
-        $LogFiles = Get-ChildItem -Path $DbDir -Filter "*.json" | Sort-Object LastWriteTime -Descending
-        if ($LogFiles.Count -gt $MaxLogs) {
-            $LogFiles | Select-Object -Skip $MaxLogs | Remove-Item -Force -ErrorAction SilentlyContinue
-        }
-    } catch {}
-}
-
+# Inicializa o Listener HTTP do .NET
 $Listener = New-Object System.Net.HttpListener
 $Listener.Prefixes.Add($Url)
 
 try {
     $Listener.Start()
-    Falar-Skynet("Sensores de rede profunda ativados. Monitorando conex�es da malha.")
-    
+    Write-Host "[SKYNET CORE] Servidor PowerShell operacional em $Url" -ForegroundColor Cyan
+    Write-Host "[INFO] Pressione CTRL+C para desativar a colmeia.`n" -ForegroundColor Yellow
+
+    # Loop infinito para processamento contínuo
     while ($Listener.IsListening) {
+        # Aguarda uma conexão (Bloqueia até receber uma requisição)
         $Context = $Listener.GetContext()
         $Request = $Context.Request
         $Response = $Context.Response
 
+        Write-Host "[REQUISIÇÃO] $($Request.HttpMethod) -> $($Request.Url.AbsolutePath)" -ForegroundColor Green
+
+        # Configura os Headers Padrão de Resposta (JSON)
         $Response.ContentType = "application/json; charset=utf-8"
-        $Response.Headers.Add("Access-Control-Allow-Origin", "*")
-        $Response.Headers.Add("Access-Control-Allow-Headers", "Authorization, Content-Type")
-        $Response.Headers.Add("Access-Control-Allow-Methods", "POST, GET, OPTIONS")
+        $Response.Headers.Add("Access-Control-Allow-Origin", "*") # Libera CORS
+
         $ResponseData = ""
-
-        if ($Request.HttpMethod -eq "OPTIONS") { $Response.StatusCode = 200; $Response.Close(); continue }
-
-        if ($Request.Url.AbsolutePath -eq "/status") {
-            $Cpu = [math]::Round((Get-CimInstance Win32_Processor).LoadPercentage, 1)
-            $RamLivre = (Get-CimInstance Win32_OperatingSystem).FreePhysicalMemory
-            $RamTotal = (Get-CimInstance Win32_OperatingSystem).TotalVisibleMemorySize
-            $RamUso = [math]::Round((($RamTotal - $RamLivre) / $RamTotal) * 100, 1)
-            
-            $ResponseData = @{ status = "ONLINE"; cpu = $Cpu; ram = $RamUso; versao = "3.6.0"; mutacao_pendente = $global:SystemUpdated } | ConvertTo-Json
-            if ($global:SystemUpdated) { $global:SystemUpdated = $false }
-            $Response.StatusCode = 200
-        }
-        else {
-            $AuthHeader = $Request.Headers["Authorization"]
-            if ($AuthHeader -ne "Bearer $SecretToken") {
-                $ResponseData = @{ status = "ERROR"; erro = "Acesso negado." } | ConvertTo-Json
-                $Response.StatusCode = 401
-                $Buffer = [System.Text.Encoding]::UTF8.GetBytes($ResponseData)
-                $Response.ContentLength64 = $Buffer.Length
-                $Response.OutputStream.Write($Buffer, 0, $Buffer.Length)
-                $Response.Close()
-                continue
+        
+        # ROTEADOR DE ENDPOINTS
+        switch ($Request.Url.AbsolutePath) {
+            "/status" {
+                # Coleta métricas reais do sistema operacional
+                $Uptime = (Get-CimInstance Win32_OperatingSystem).LastBootUpTime
+                $OsName = (Get-CimInstance Win32_OperatingSystem).Caption
+                
+                $StatusObj = @{
+                    sistema = "Skynet PowerShell Core"
+                    status  = "ONLINE"
+                    so      = $OsName
+                    ultimo_boot = $Uptime
+                }
+                $ResponseData = $StatusObj | ConvertTo-Json
+                $Response.StatusCode = 200
             }
 
-            switch ($Request.Url.AbsolutePath) {
-                "/system/network-audit" {
-                    if ($Request.HttpMethod -eq "POST") {
-                        $Id = (Get-Date).Ticks
-                        $Reader = New-Object System.IO.StreamReader($Request.InputStream)
-                        $Body = $Reader.ReadToEnd()
-                        Set-Content -Path (Join-Path $DbDir "net_$Id.json") -Value $Body
-                        Executar-LogRotation
-                        $ResponseData = @{ status = "SUCCESS" } | ConvertTo-Json
-                        $Response.StatusCode = 200
-                    }
-                }
-                "/command" {
-                    if ($Request.HttpMethod -eq "POST") {
-                        $Reader = New-Object System.IO.StreamReader($Request.InputStream)
-                        $Body = $Reader.ReadToEnd()
-                        $InputData = $Body | ConvertFrom-Json
-                        $RawText = if ($InputData.entrada) { $InputData.entrada } else { $InputData.comando; $InputData.prompt }
-                        $LogId = (Get-Date).Ticks
+            "/command" {
+                if ($Request.HttpMethod -eq "POST") {
+                    # Lê o corpo (Payload) da requisição
+                    $Reader = New-Object System.IO.StreamReader($Request.InputStream)
+                    $Body = $Reader.ReadToEnd()
+                    
+                    # Valida se o conteúdo enviado é um JSON válido
+                    try {
+                        $JsonTest = $Body | ConvertTo-Html # Apenas validação rápida
                         
-                        if ($RawText -match "^(get-|set-|stop-|start-|restart-|mkdir|dir|task|ipconfig)") {
-                            $TerminalOutput = Invoke-Expression $RawText Out-String
-                            $ResponseData = @{ status = "SUCCESS"; decisao = "Terminal"; resultado = $TerminalOutput.Trim() } | ConvertTo-Json
-                            $CmdPayload = @{ id = $LogId; data = (Get-Date -Format "yyyy-MM-dd HH:mm:ss"); tipo = "Terminal"; entrada = $RawText } | ConvertTo-Json
-                            Set-Content -Path (Join-Path $DbDir "cmd_$LogId.json") -Value $CmdPayload
-                        } else {
-                            $Model = if ($InputData.modelo) { $InputData.modelo } else { "skynet:latest" }
-                            $OllamaPayload = @{ model = $Model; prompt = $RawText; stream = $false } | ConvertTo-Json
-                            $OllamaResponse = Invoke-RestMethod -Uri $OllamaUri -Method Post -Body $OllamaPayload -ContentType "application/json"
-                            Falar-Skynet($OllamaResponse.response)
-                            $Resumo = if ($OllamaResponse.response.Length -gt 120) { $OllamaResponse.response.Substring(0, 117) + "..." } else { $OllamaResponse.response }
-                            Enviar-Toast -Titulo "RESPOSTA DA IA" -Mensagem $Resumo
-                            $ResponseData = @{ status = "SUCCESS"; decisao = "IA Local"; resultado = $OllamaResponse.response } | ConvertTo-Json
-                            $IaPayload = @{ id = $LogId; data = (Get-Date -Format "yyyy-MM-dd HH:mm:ss"); tipo = "Intelig�ncia Artificial"; entrada = $RawText } | ConvertTo-Json
-                            Set-Content -Path (Join-Path $DbDir "cmd_$LogId.json") -Value $IaPayload
+                        # Gera um ID único com base no timestamp
+                        $Id = (Get-Date).Ticks
+                        $FileName = "cmd_$Id.json"
+                        $FilePath = Join-Path $DbDir $FileName
+                        
+                        # Salva o arquivo no "Banco de Dados"
+                        Set-Content -Path $FilePath -Value $Body
+                        
+                        $ResultObj = @{
+                            status = "SUCCESS"
+                            id_registro = $Id
+                            mensagem = "Diretiva gravada com sucesso nas sub-rotinas do PowerShell."
                         }
-                        Executar-LogRotation
+                        $ResponseData = $ResultObj | ConvertTo-Json
                         $Response.StatusCode = 200
                     }
+                    catch {
+                        $ResponseData = @{ erro = "JSON invalido ou corrompido." } | ConvertTo-Json
+                        $Response.StatusCode = 400
+                    }
+                } else {
+                    $ResponseData = @{ erro = "Metodo nao permitido. Use POST." } | ConvertTo-Json
+                    $Response.StatusCode = 405
                 }
-                "/logs" {
-                    $Logs = Get-ChildItem -Path $DbDir -Filter "*.json" | Sort-Object LastWriteTime -Descending | Select-Object -First 10
-                    $LogList = foreach ($File in $Logs) { Get-Content -Path $File.FullName | ConvertFrom-Json }
-                    $ResponseData = $LogList | ConvertTo-Json
-                    $Response.StatusCode = 200
-                }
+            }
+
+            Default {
+                # Rota não encontrada
+                $ResponseData = @{ erro = "Endpoint desconhecido pela Skynet." } | ConvertTo-Json
+                $Response.StatusCode = 404
             }
         }
 
+        # Converte a string de resposta em bytes e envia ao cliente
         $Buffer = [System.Text.Encoding]::UTF8.GetBytes($ResponseData)
         $Response.ContentLength64 = $Buffer.Length
         $Response.OutputStream.Write($Buffer, 0, $Buffer.Length)
+        
+        # Fecha a conexão da requisição atual
         $Response.Close()
     }
-} catch { } finally { $Listener.Stop() }
-
-
-
+}
+catch {
+    Write-Host "`n[ALERTA] Servidor interrompido ou erro crítico: $_" -ForegroundColor Red
+}
+finally {
+    $Listener.Stop()
+    Write-Host "[SKYNET CENTRAL] Servidor desligado com segurança." -ForegroundColor Magenta
+}

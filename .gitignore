@@ -1,0 +1,6 @@
+secrets.json
+*.env
+*.key
+*.log
+temp/
+database/
