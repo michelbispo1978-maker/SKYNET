@@ -18,7 +18,7 @@ def models():
     try:
         import urllib.request, json as _json
         req = urllib.request.Request('http://127.0.0.1:11434/api/tags', headers={'User-Agent': 'SKYNET/1.0'})
-        with urllib.request.urlopen(req, timeout=2) as r:
+        with urllib.request.urlopen(req, timeout=180) as r:
             j = _json.loads(r.read().decode('utf-8', errors='ignore'))
         models = [{"name": m.get("name")} for m in j.get("models", [])]
         if not models:
@@ -35,7 +35,7 @@ def status():
     try:
         import urllib.request
         req = urllib.request.Request('http://127.0.0.1:11434/api/tags', headers={'User-Agent': 'SKYNET/1.0'})
-        with urllib.request.urlopen(req, timeout=2) as r:
+        with urllib.request.urlopen(req, timeout=180) as r:
             ollama_on = (r.status == 200)
     except:
         ollama_on = False
@@ -107,7 +107,7 @@ def chat():
                 headers={"Content-Type": "application/json", "Authorization": "Bearer SKYNET-66827-FUSAO-TOTAL"},
                 method="POST"
             )
-            with urllib.request.urlopen(req_robo, timeout=90) as r_robo:
+            with urllib.request.urlopen(req_robo, timeout=180) as r_robo:
                 res_j = _json.loads(r_robo.read().decode("utf-8", errors="ignore"))
             saida = res_j.get("resultado") or res_j.get("erro") or str(res_j)
             return jsonify({"ok": True, "autenticado": True, "response": saida, "model": "SKYNET-CORE-8080"})
@@ -176,7 +176,7 @@ def pc_manager():
         elif task in ["updates", "update", "windows_update"]:
             try:
                 import subprocess
-                out = subprocess.check_output(["powershell", "-Command", "Get-HotFix | Sort-Object InstalledOn -Descending | Select-Object -First 5 HotFixID, Description, InstalledOn | Format-Table -AutoSize | Out-String"], timeout=12, text=True, errors="ignore")
+                out = subprocess.check_output(["powershell", "-Command", "Get-HotFix | Sort-Object InstalledOn -Descending | Select-Object -First 5 HotFixID, Description, InstalledOn | Format-Table -AutoSize | Out-String"], timeout=180, text=True, errors="ignore")
                 result = f"UPDATES - Ultimos 5 HotFix instalados:\n{out}\nVerificado via Get-HotFix ✅"
             except Exception as e:
                 result = f"UPDATES - Nao consegui ler Windows Update: {e}"
@@ -217,7 +217,7 @@ def pc_manager():
         elif task in ['startup']:
             try:
                 import subprocess
-                out2 = subprocess.check_output(['powershell', '-Command', 'Get-CimInstance Win32_StartupCommand | Select-Object -First 5 Name | Format-Table -AutoSize | Out-String'], timeout=10, text=True, errors='ignore')
+                out2 = subprocess.check_output(['powershell', '-Command', 'Get-CimInstance Win32_StartupCommand | Select-Object -First 5 Name | Format-Table -AutoSize | Out-String'], timeout=180, text=True, errors='ignore')
                 result = f'INICIALIZACAO - Primeiros 5:\n{out2}'
             except Exception as e:
                 result = f'INICIALIZACAO - Erro: {e}'
@@ -231,7 +231,7 @@ def pc_manager():
         elif task in ['scheduled_tasks', 'scheduled']:
             try:
                 import subprocess
-                out3 = subprocess.check_output(['schtasks', '/query', '/FO', 'TABLE', '/NH'], timeout=10, text=True, errors='ignore')
+                out3 = subprocess.check_output(['schtasks', '/query', '/FO', 'TABLE', '/NH'], timeout=180, text=True, errors='ignore')
                 linhas = [l for l in out3.splitlines() if l.strip()][:8]
                 result = 'TAREFAS AGENDADAS - Primeiras 8:\n' + chr(10).join(linhas)
             except Exception as e:
@@ -247,7 +247,7 @@ def pc_manager():
         elif task in ['events']:
             try:
                 import subprocess
-                out4 = subprocess.check_output(['powershell', '-Command', 'Get-EventLog -LogName System -Newest 5 | Select-Object TimeGenerated, EntryType, Source | Format-Table -AutoSize | Out-String'], timeout=10, text=True, errors='ignore')
+                out4 = subprocess.check_output(['powershell', '-Command', 'Get-EventLog -LogName System -Newest 5 | Select-Object TimeGenerated, EntryType, Source | Format-Table -AutoSize | Out-String'], timeout=180, text=True, errors='ignore')
                 result = f'EVENTOS DO SISTEMA - Ultimos 5:\n{out4}'
             except Exception as e:
                 result = f'EVENTOS - Erro: {e}'
@@ -290,7 +290,7 @@ def research_run():
         import urllib.request, urllib.parse, json as _json
         _url = "https://pt.wikipedia.org/w/api.php?action=query&list=search&srsearch=" + urllib.parse.quote(q) + "&format=json&srlimit=3"
         _req = urllib.request.Request(_url, headers={'User-Agent': 'SKYNET/1.0 (Windows 11; Python)'})
-        _raw = urllib.request.urlopen(_req, timeout=5).read().decode('utf-8', errors='ignore')
+        _raw = urllib.request.urlopen(_req, timeout=180).read().decode('utf-8', errors='ignore')
         _j = _json.loads(_raw)
         for _s in _j.get("query", {}).get("search", []):
             web_sources.append({"title": _s.get("title", ""), "url": "https://pt.wikipedia.org/wiki/" + urllib.parse.quote(_s.get("title", ""))})
@@ -334,12 +334,12 @@ def robo_bridge():
     try:
         if request.method == "GET":
             req = urllib.request.Request("http://localhost:8080/status", headers=headers)
-            with urllib.request.urlopen(req, timeout=5) as res:
+            with urllib.request.urlopen(req, timeout=180) as res:
                 return jsonify(json.loads(res.read().decode()))
         else:
             data = json.dumps(request.get_json(silent=True) or {}).encode("utf-8")
             req = urllib.request.Request("http://localhost:8080/command", data=data, headers=headers, method="POST")
-            with urllib.request.urlopen(req, timeout=60) as res:
+            with urllib.request.urlopen(req, timeout=180) as res:
                 return jsonify(json.loads(res.read().decode()))
     except Exception as e:
         return jsonify({"status": "OFFLINE", "erro": str(e)}), 502
