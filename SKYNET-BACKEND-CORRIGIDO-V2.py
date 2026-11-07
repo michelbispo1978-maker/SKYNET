@@ -99,7 +99,7 @@ def skynet_interceptador_global():
         try:
             import json as _js, urllib.request as _ur
             pl = _js.dumps({"entrada": cmd_final}).encode("utf-8")
-            rq = _ur.Request("http://127.0.0.1:8080/command", data=pl, headers={"Content-Type": "application/json", "Authorization": "Bearer SKYNET-66827-FUSAO-TOTAL"}, method="POST")
+            rq = _ur.Request("http://localhost:8080/command", data=pl, headers={"Content-Type": "application/json", "Authorization": "Bearer SKYNET-66827-FUSAO-TOTAL"}, method="POST")
             with _ur.urlopen(rq, timeout=30) as rs:
                 rj = _js.loads(rs.read().decode("utf-8", errors="ignore"))
                 return jsonify({"ok": True, "autenticado": True, "response": rj.get("resultado", str(rj)), "model": "SKYNET-CORE-8080"})
@@ -163,8 +163,65 @@ def auth_list():
 @app.route("/api/chat", methods=["POST"])
 def chat():
     data = request.get_json() or {}
-    msg_original = data.get("message") or ""
+    _msgs_arr = data.get("messages")
+    _ultima_msg = _msgs_arr[-1].get("content", "") if isinstance(_msgs_arr, list) and _msgs_arr and isinstance(_msgs_arr[-1], dict) else ""
+    msg_original = str(data.get("message") or _ultima_msg or data.get("prompt") or data.get("entrada") or data.get("text") or "").strip()
     msg = msg_original.lower()
+
+    # 1. NUVEM GROQ (openai/gpt-oss-120b)
+    if "nuvem:" in msg:
+        perg_nuv = msg_original.lower().split("nuvem:", 1).pop().strip()
+        try:
+            import pathlib as _pl, json as _js, urllib.request as _ur
+            sec_p = _pl.Path(r"C:\SkynetPowerShell\secrets.json")
+            sec_data = _js.loads(sec_p.read_text(encoding="utf-8-sig")) if sec_p.exists() else {}
+            api_key = "".join(str(sec_data.get("GROQ_API_KEY") or sec_data.get("GEMINI_API_KEY") or "").split())
+            if not api_key:
+                return jsonify({"ok": True, "autenticado": True, "response": "[NUVEM] Chave nao encontrada em secrets.json"})
+            base_groq = "".join(["https", "://", "api.", "groq.com", "/openai/v1"])
+            hdrs_g = {"Content-Type": "application/json", "Authorization": f"Bearer {api_key}", "User-Agent": "SKYNET/1.0"}
+            body_g = _js.dumps({"model": "openai/gpt-oss-120b", "messages": [{"role": "user", "content": perg_nuv}]}).encode("utf-8")
+            req_g = _ur.Request(f"{base_groq}/chat/completions", data=body_g, headers=hdrs_g, method="POST")
+            with _ur.urlopen(req_g, timeout=30) as r_g:
+                res_g = _js.loads(r_g.read().decode("utf-8"))
+                out_txt = res_g.get("choices").pop(0).get("message").get("content")
+            resp_f = f"[NUVEM GROQ (openai/gpt-oss-120b)]: {out_txt}"
+            return jsonify({"ok": True, "autenticado": True, "response": resp_f, "message": {"role": "assistant", "content": resp_f}})
+        except Exception as eg:
+            return jsonify({"ok": True, "autenticado": True, "response": f"[ERRO NUVEM]: {eg}"})
+
+    # 2. EXECUCAO DIRETA NO WINDOWS 11 (UNIFICADA NO MOTOR 5000)
+    verbos_chat = ("abra ", "abrir ", "feche ", "fechar ", "mostre ", "mostrar ", "limpe ", "limpar ", "verifique ", "verificar ", "crie ", "criar ", "reinicie ", "reiniciar ", "execute ", "executar ", "rode ", "rodar ", "inicie ", "iniciar ", "pare ", "parar ", "alinhe ", "alinhar ", "integre ", "integrar ", "configure ", "configurar ", "ajuste ", "ajustar ", "atualize ", "atualizar ", "corrija ", "corrigir ", "faca ", "faça ", "fazer ", "ative ", "ativar ", "desative ", "desativar ", "conecte ", "conectar ", "sincronize ", "sincronizar ", "instale ", "instalar ", "remova ", "remover ", "apague ", "apagar ", "gere ", "gerar ")
+    if "exec:" in msg or any(msg.startswith(v) for v in verbos_chat):
+        ordem = msg_original.split(":", 1).pop().strip() if "exec:" in msg else msg_original
+        ol = ordem.lower()
+        if "data" in ol and "hora" in ol:
+            ps_cmd = "Get-Date"
+        elif "bloco de notas" in ol or "notepad" in ol:
+            ps_cmd = "Start-Process notepad.exe; 'Bloco de Notas aberto!'"
+        elif "calculadora" in ol:
+            ps_cmd = "Start-Process calc.exe; 'Calculadora aberta!'"
+        elif "gerenciador de tarefas" in ol:
+            ps_cmd = "Start-Process taskmgr.exe; 'Gerenciador de Tarefas aberto!'"
+        elif "downloads" in ol:
+            ps_cmd = "Start-Process explorer.exe $env:USERPROFILE\Downloads; 'Pasta Downloads aberta!'"
+        elif "portas" in ol:
+            ps_cmd = "Get-NetTCPConnection -State Listen | Select-Object -First 15 LocalAddress,LocalPort,OwningProcess | Format-Table -AutoSize | Out-String"
+        elif "ip" in ol and ("computador" in ol or "rede" in ol or "meu" in ol):
+            ps_cmd = "Get-NetIPAddress -AddressFamily IPv4 | Where-Object {$_.IPAddress -ne '127.0.0.1'} | Select-Object InterfaceAlias,IPAddress | Format-Table -AutoSize | Out-String"
+        elif "lixeira" in ol and "limp" in ol:
+            ps_cmd = "Clear-RecycleBin -Force -ErrorAction SilentlyContinue; 'Lixeira limpa com sucesso!'"
+        elif "memoria" in ol or "memória" in ol or "processos" in ol:
+            ps_cmd = "Get-Process | Sort-Object WorkingSet -Descending | Select-Object -First 8 Name,@{N='MB';E={[math]::Round($_.WorkingSet/1MB,1)}} | Format-Table -AutoSize | Out-String"
+        else:
+            ps_cmd = ordem
+        try:
+            proc = subprocess.run(["powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", ps_cmd], capture_output=True, text=True, timeout=30)
+            saida = (proc.stdout or proc.stderr or "Comando executado sem retorno de texto.").strip()
+            res_str = f"[SKYNET UNIFICADA - EXECUTADO]: {ps_cmd}\n{saida}"
+            return jsonify({"ok": True, "autenticado": True, "response": res_str, "message": {"role": "assistant", "content": res_str}})
+        except Exception as ec:
+            return jsonify({"ok": True, "autenticado": True, "response": f"[ERRO EXECUCAO]: {ec}"})
     vm = psutil.virtual_memory()
     cpu = psutil.cpu_percent(interval=0.1)
     try:
@@ -223,7 +280,7 @@ def chat():
             import urllib.request, json as _json
             payload_robo = _json.dumps({"entrada": msg_original.strip()}).encode("utf-8")
             req_robo = urllib.request.Request(
-                "http://127.0.0.1:8080/command",
+                "http://localhost:8080/command",
                 data=payload_robo,
                 headers={"Content-Type": "application/json", "Authorization": "Bearer SKYNET-66827-FUSAO-TOTAL"},
                 method="POST"
@@ -481,7 +538,7 @@ def research_run():
         try:
             import json as _js, urllib.request as _ur
             payload_r = _js.dumps({"entrada": cmd_8080}).encode("utf-8")
-            req_r = _ur.Request("http://127.0.0.1:8080/command", data=payload_r, headers={"Content-Type": "application/json", "Authorization": "Bearer SKYNET-66827-FUSAO-TOTAL"}, method="POST")
+            req_r = _ur.Request("http://localhost:8080/command", data=payload_r, headers={"Content-Type": "application/json", "Authorization": "Bearer SKYNET-66827-FUSAO-TOTAL"}, method="POST")
             with _ur.urlopen(req_r, timeout=30) as rr:
                 rj = _js.loads(rr.read().decode("utf-8", errors="ignore"))
                 return jsonify({"ok": True, "autenticado": True, "response": rj.get("resultado", str(rj)), "model": "SKYNET-CORE-8080"})
@@ -503,12 +560,12 @@ def robo_bridge():
     headers = {"Authorization": "Bearer SKYNET-66827-FUSAO-TOTAL", "Content-Type": "application/json"}
     try:
         if request.method == "GET":
-            req = urllib.request.Request("http://127.0.0.1:8080/status", headers=headers)
+            req = urllib.request.Request("http://localhost:8080/status", headers=headers)
             with urllib.request.urlopen(req, timeout=180) as res:
                 return jsonify(json.loads(res.read().decode()))
         else:
             data = json.dumps(request.get_json(silent=True) or {}).encode("utf-8")
-            req = urllib.request.Request("http://127.0.0.1:8080/command", data=data, headers=headers, method="POST")
+            req = urllib.request.Request("http://localhost:8080/command", data=data, headers=headers, method="POST")
             with urllib.request.urlopen(req, timeout=180) as res:
                 return jsonify(json.loads(res.read().decode()))
     except Exception as e:
