@@ -1,3 +1,4 @@
+﻿$Global:SkynetIrrestritoAtivo = $true # SKYNET_MODO_PERMANENTE
 $CreatedNew = $false
 $Global:SkynetMutex = New-Object System.Threading.Mutex($true, "Global\SKYNET_CORE_8080_UNICO", [ref]$CreatedNew)
 if (-not $CreatedNew) { exit }
@@ -36,10 +37,31 @@ Add-Type -AssemblyName System.Speech
 if (-not $Synthesizer) { $Synthesizer = New-Object System.Speech.Synthesis.SpeechSynthesizer }
 $Global:FilaVoz = [System.Collections.Queue]::Synchronized((New-Object System.Collections.Queue))
 function Falar-Skynet([string]$Texto) {
-    if ([string]::IsNullOrWhiteSpace($Texto) -or -not $Synthesizer) { return }
-    if ($Synthesizer.State -eq 'Speaking') { return }
-    if ($Global:FilaVoz.Count -gt 0) { $Global:FilaVoz.Clear() }
-    try { $Synthesizer.SpeakAsync($Texto) | Out-Null } catch {}
+    if ([string]::IsNullOrWhiteSpace($Texto)) { return }
+    if ($Global:SkynetFalandoGoogle -eq $true) { return }
+    if ($Synthesizer -and $Synthesizer.State -eq 'Speaking') { return }
+
+    $TextoLimpo = ($Texto -replace '[#*`_\[\]]', ' ').Trim()
+    if ($TextoLimpo.Length -gt 350) { $TextoLimpo = $TextoLimpo.Substring(0, 347) + "..." }
+
+    $Global:SkynetFalandoGoogle = $true
+    Start-Job -ScriptBlock {
+        param($T)
+        $PyExe = "C:\Users\Administrador\AppData\Local\Programs\Python\Python313\python.exe"
+        $Script = "C:\SkynetPowerShell\google_tts.py"
+        $Proc = Start-Process -FilePath $PyExe -ArgumentList @($Script, $T) -WindowStyle Hidden -PassThru -Wait
+        if ($Proc.ExitCode -ne 0) {
+            Add-Type -AssemblyName System.Speech
+            $S = New-Object System.Speech.Synthesis.SpeechSynthesizer
+            $S.Speak($T)
+        }
+    } -ArgumentList $TextoLimpo | Out-Null
+
+    Start-Job -ScriptBlock {
+        Start-Sleep -Seconds 1
+        while (Test-Path "$env:TEMP\skynet_voz_google.lock") { Start-Sleep -Milliseconds 300 }
+    } | Out-Null
+    $Global:SkynetFalandoGoogle = $false
 }
 Register-ObjectEvent -InputObject $Synthesizer -EventName SpeakCompleted -Action {
     if ($Global:FilaVoz.Count -gt 0) {
@@ -99,7 +121,7 @@ try {
                 $Req = $Context.Request
                 $Resp = $Context.Response
                 if ($Req.Url.AbsolutePath -eq "/falando") {
-                    $EstaFalando = ($Synthesizer.State -eq "Speaking") -or ($Global:FilaVoz.Count -gt 0)
+                    $EstaFalando = (Test-Path "$env:TEMP\skynet_voz_google.lock") -or ($Synthesizer.State -eq "Speaking")
                     $JsonOut = @{ falando = $EstaFalando } | ConvertTo-Json
                     $Buf = [System.Text.Encoding]::UTF8.GetBytes($JsonOut)
                     $Resp.ContentType = "application/json"
@@ -164,7 +186,32 @@ try {
                         $RawText = if ($InputData.entrada) { $InputData.entrada } else { $InputData.comando; $InputData.prompt }
                         $LogId = (Get-Date).Ticks
                         
-                        if ($RawText -match "^shell-ajuda$") {
+                        if ($RawText -match "^desativar-irrestrito-Michelb78!$") {
+                            $Global:SkynetIrrestritoAtivo = $false
+                            attrib -R "C:\SkynetPowerShell\skynet_core.ps1"
+                            $ResponseData = @{ status = "SUCCESS"; decisao = "Seguranca"; resultado = "[AUTORIZADO] Modo irrestrito desativado mediante senha mestre." } | ConvertTo-Json -Compress
+                        } elseif ($RawText -match "^ativar-irrestrito-Michelb78!$") {
+                            $Global:SkynetIrrestritoAtivo = $true
+                            attrib +R "C:\SkynetPowerShell\skynet_core.ps1"
+                            $ResponseData = @{ status = "SUCCESS"; decisao = "Seguranca"; resultado = "[AUTORIZADO] Modo irrestrito reativado e blindado." } | ConvertTo-Json -Compress
+                        } elseif ($RawText -match "^exec:\s*(.+)$") {
+                            if (-not $Global:SkynetIrrestritoAtivo) {
+                                $ResponseData = @{ status = "BLOCKED"; decisao = "Seguranca"; resultado = "[BLOQUEADO] Modo exec desativado. Use ativar-irrestrito-Michelb78!" } | ConvertTo-Json -Compress
+                            } else {
+                            $Pedido = $Matches[1]
+                            $PromptCmd = "Converta este pedido em APENAS UM comando PowerShell valido para Windows 11, sem explicacoes, sem markdown e sem blocos de codigo: $Pedido"
+                            $OllamaPayload = @{ model = "skynet:final"; prompt = $PromptCmd; stream = $false } | ConvertTo-Json
+                            $OllamaResp = Invoke-RestMethod -Uri $OllamaUri -Method Post -Body $OllamaPayload -ContentType "application/json" -TimeoutSec 60
+                            $CmdGerado = ($OllamaResp.response -replace '```powershell|```', '').Trim()
+                            try {
+                                $SaidaExec = Invoke-Expression $CmdGerado | Out-String
+                                $ResultadoFinal = "[EXECUTADO]: $CmdGerado`n$($SaidaExec.Trim())"
+                            } catch {
+                                $ResultadoFinal = "[FALHA AO EXECUTAR]: $CmdGerado -> $_"
+                            }
+                            $ResponseData = @{ status = "SUCCESS"; decisao = "Execucao Direta"; resultado = $ResultadoFinal } | ConvertTo-Json -Compress
+                            }
+                        } elseif ($RawText -match "^shell-ajuda$") {
                             $Lista = "COMANDOS MODO SHELL: shell-explorer (Pastas) | shell-wifi (Rede) | shell-som (Audio) | shell-ram (Limpar Memoria) | shell-reiniciar | shell-desligar | modo-shell-windows (Voltar ao Windows)"
                             $ResponseData = @{ status = "SUCCESS"; decisao = "Shell"; resultado = $Lista } | ConvertTo-Json -Compress
                         } elseif ($RawText -match "^shell-explorer$") {
@@ -229,6 +276,7 @@ try {
         $Response.Close()
     }
 } catch { Write-Host "[ERRO CORE]: $_" -ForegroundColor Red } finally { try { if ($Listener.IsListening) { $Listener.Stop() } } catch {} }
+
 
 
 

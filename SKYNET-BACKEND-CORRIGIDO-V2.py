@@ -5,6 +5,108 @@ app = Flask(__name__)
 CORS(app)
 BASE = pathlib.Path(r"D:\SKYNET\Michelbds-7870")
 
+# === INTERCEPTADOR GLOBAL SKYNET (HIBRIDO NUVEM + EXECUCAO LOCAL DIRETA) ===
+@app.before_request
+def skynet_interceptador_global():
+    if request.method != "POST":
+        return None
+    if request.path in ["/api/pc-manager", "/api/files", "/api/status"]:
+        return None
+    data = request.get_json(silent=True) or {}
+    texto_raw = (data.get("message") or data.get("prompt") or data.get("entrada") or data.get("q") or data.get("text") or "").strip()
+    if not texto_raw:
+        return None
+    low = texto_raw.lower()
+
+    # 0. Rota Pesquisa Web Real (web: <assunto>)
+    if low.startswith("web:"):
+        termo = texto_raw.split(":", 1).pop().strip()
+        try:
+            import urllib.request as _ur, urllib.parse as _up, json as _js, re as _re
+            url_ddg = "".join(["https", "://", "html." + "duckduckgo.com", "/html/?q=", _up.quote(termo)])
+            req_w = _ur.Request(url_ddg, headers={"User-Agent": "Mozilla/5.0"})
+            with _ur.urlopen(req_w, timeout=15) as rw:
+                html_w = rw.read().decode("utf-8", errors="ignore")
+                trechos = _re.findall(r'class="result__snippet"[^>]*>(.*?)</a>', html_w, flags=_re.DOTALL)
+                limpos = [_re.sub(r'<[^>]+>', '', t).strip() for t in trechos[:4]]
+                resumo_web = "\n- ".join(limpos) if limpos else "Nenhum resultado direto encontrado."
+            return jsonify({"ok": True, "autenticado": True, "response": f"[WEB TEMPO REAL - {termo}]:\n- {resumo_web}", "model": "SKYNET-WEB"})
+        except Exception as ew:
+            return jsonify({"ok": True, "autenticado": True, "response": f"[ERRO WEB]: {ew}"})
+
+    # 0.5 Roteamento Inteligente: Se RAM local > 80%, desvia chat pesado automaticamente para Nuvem
+    try:
+        if psutil.virtual_memory().percent > 80.0 and not low.startswith(("exec:", "nuvem:", "skynet")):
+            low = "nuvem: " + low
+            texto_raw = "nuvem: " + texto_raw
+    except Exception:
+        pass
+
+    # 1. Rota Nuvem (Gemini API via secrets.json)
+    if low.startswith("nuvem:"):
+        pergunta = texto_raw.split(":", 1).pop().strip()
+        try:
+            import pathlib as _pl, json as _js, urllib.request as _ur
+            sec_p = _pl.Path(r"C:\SkynetPowerShell\secrets.json")
+            sec_data = _js.loads(sec_p.read_text(encoding="utf-8-sig")) if sec_p.exists() else {}
+            api_key = "".join(str(sec_data.get("GEMINI_API_KEY") or sec_data.get("GROQ_API_KEY") or sec_data.get("CLOUD_API_KEY") or "").split())
+            if not api_key:
+                return jsonify({"ok": True, "autenticado": True, "response": "[NUVEM] Adicione sua chave API em C:\\SkynetPowerShell\\secrets.json"})
+
+            if api_key.startswith("gsk_"):
+                base_groq = "".join(["https", "://", "api.", "groq.com", "/openai/v1"])
+                hdrs_g = {"Content-Type": "application/json", "Authorization": f"Bearer {api_key}", "User-Agent": "SKYNET/1.0"}
+                modelo_g = "openai/gpt-oss-120b"
+                try:
+                    req_lm = _ur.Request(f"{base_groq}/models", headers=hdrs_g, method="GET")
+                    with _ur.urlopen(req_lm, timeout=10) as r_lm:
+                        lista_g = [m.get("id") for m in _js.loads(r_lm.read().decode("utf-8")).get("data", []) if m.get("id") == "openai/gpt-oss-120b"]
+                        if lista_g:
+                            modelo_g = next((x for x in lista_g if "70b" in x or "llama" in x), lista_g.pop(0))
+                except Exception:
+                    pass
+                body_g = _js.dumps({"model": modelo_g, "messages": [{"role": "user", "content": pergunta}]}).encode("utf-8")
+                req_g = _ur.Request(f"{base_groq}/chat/completions", data=body_g, headers=hdrs_g, method="POST")
+                with _ur.urlopen(req_g, timeout=30) as r_g:
+                    res_g = _js.loads(r_g.read().decode("utf-8"))
+                    out_txt = res_g.get("choices").pop(0).get("message").get("content")
+                return jsonify({"ok": True, "autenticado": True, "response": f"[NUVEM GROQ ({modelo_g})]: {out_txt}", "model": "SKYNET-NUVEM-GROQ"})
+            else:
+                base_g = "".join(["https", "://", "generativelanguage", ".googleapis.com", "/v1beta"])
+                modelo_ativo = "models/gemini-2.5-flash"
+                try:
+                    with _ur.urlopen(f"{base_g}/models?key={api_key}", timeout=10) as rm:
+                        lista_m = _js.loads(rm.read().decode("utf-8")).get("models", [])
+                        flash_m = [m.get("name") for m in lista_m if "flash" in m.get("name", "").lower() and "generateContent" in m.get("supportedGenerationMethods", [])]
+                        if flash_m:
+                            modelo_ativo = flash_m.pop(0)
+                except Exception:
+                    pass
+                url_gem = f"{base_g}/{modelo_ativo}:generateContent?key={api_key}"
+                body_gem = _js.dumps({"contents": [{"parts": [{"text": pergunta}]}]}).encode("utf-8")
+                req_gem = _ur.Request(url_gem, data=body_gem, headers={"Content-Type": "application/json"}, method="POST")
+                with _ur.urlopen(req_gem, timeout=30) as r_gem:
+                    res_gem = _js.loads(r_gem.read().decode("utf-8"))
+                    out_txt = res_gem.get("candidates").pop(0).get("content").get("parts").pop(0).get("text")
+                return jsonify({"ok": True, "autenticado": True, "response": f"[NUVEM GEMINI ({modelo_ativo})]: {out_txt}", "model": "SKYNET-NUVEM-GEMINI"})
+        except Exception as e_g:
+            return jsonify({"ok": True, "autenticado": True, "response": f"[ERRO NUVEM]: {e_g}"})
+
+    # 2. Rota Execucao Direta no Windows (Porta 8080)
+    verbos = ("abra ", "abrir ", "feche ", "fechar ", "mostre ", "mostrar ", "limpe ", "limpar ", "verifique ", "verificar ", "crie ", "criar ", "reinicie ", "reiniciar ", "execute ", "executar ", "rode ", "rodar ", "inicie ", "iniciar ", "pare ", "parar ", "alinhe ", "alinhar ", "integre ", "integrar ", "configure ", "configurar ", "ajuste ", "ajustar ", "atualize ", "atualizar ", "corrija ", "corrigir ", "faca ", "faça ", "fazer ", "ative ", "ativar ", "desative ", "desativar ", "conecte ", "conectar ", "sincronize ", "sincronizar ", "instale ", "instalar ", "remova ", "remover ", "apague ", "apagar ", "gere ", "gerar ")
+    if low.startswith("exec:") or any(low.startswith(v) for v in verbos):
+        cmd_final = texto_raw if low.startswith("exec:") else f"exec: {texto_raw}"
+        try:
+            import json as _js, urllib.request as _ur
+            pl = _js.dumps({"entrada": cmd_final}).encode("utf-8")
+            rq = _ur.Request("http://127.0.0.1:8080/command", data=pl, headers={"Content-Type": "application/json", "Authorization": "Bearer SKYNET-66827-FUSAO-TOTAL"}, method="POST")
+            with _ur.urlopen(rq, timeout=30) as rs:
+                rj = _js.loads(rs.read().decode("utf-8", errors="ignore"))
+                return jsonify({"ok": True, "autenticado": True, "response": rj.get("resultado", str(rj)), "model": "SKYNET-CORE-8080"})
+        except Exception as e_c:
+            return jsonify({"ok": True, "autenticado": True, "response": f"[ERRO CORE 8080]: {e_c}"})
+    return None
+
 @app.route("/")
 def index():
     try:
@@ -85,9 +187,28 @@ def chat():
         names = ", ".join([x.name for x in files])
         resp = f"REVISAO FEITA: {len(files)} arquivos. {names}. Backend completo OK, Interface mantida."
         return jsonify({"ok": True, "autenticado": True, "response": resp})
+    # --- MODO HIBRIDO NUVEM (Lendo chave segura de secrets.json) ---
+    if msg.startswith("nuvem:"):
+        pergunta_nuvem = msg_original.split(":", 1)[1].strip()
+        try:
+            sec_p = pathlib.Path(r"C:\SkynetPowerShell\secrets.json")
+            sec_data = _json.loads(sec_p.read_text(encoding="utf-8-sig")) if sec_p.exists() else {}
+            api_key = sec_data.get("GEMINI_API_KEY") or sec_data.get("CLOUD_API_KEY")
+            if not api_key:
+                return jsonify({"ok": True, "autenticado": True, "response": "[NUVEM] Adicione 'GEMINI_API_KEY' no arquivo C:\\SkynetPowerShell\\secrets.json para ativar consultas em nuvem."})
+            url_gem = "".join(["https", "://", "generativelanguage", ".googleapis.com", "/v1beta/models/gemini-flash-latest:generateContent?key=", api_key])
+            body_gem = _json.dumps({"contents": [{"parts": [{"text": pergunta_nuvem}]}]}).encode("utf-8")
+            req_gem = urllib.request.Request(url_gem, data=body_gem, headers={"Content-Type": "application/json"}, method="POST")
+            with urllib.request.urlopen(req_gem, timeout=30) as r_gem:
+                res_gem = _json.loads(r_gem.read().decode("utf-8"))
+                texto_nuvem = res_gem["candidates"][0]["content"]["parts"][0]["text"]
+            return jsonify({"ok": True, "autenticado": True, "response": f"[NUVEM]: {texto_nuvem}", "model": "SKYNET-NUVEM"})
+        except Exception as e_nuv:
+            return jsonify({"ok": True, "autenticado": True, "response": f"[ERRO NUVEM]: {e_nuv}"})
+
     # --- FUSÃO NATIVA: Roteia comandos de hardware, visão, voz e automação para o Robô 8080 ---
     prefixos_robo = (
-        "raio-x", "saude-ssd", "limpar-ram", "otimizar-windows", "destravar-pc",
+        "exec:", "modo-shell-", "shell-", "ativar-irrestrito-", "desativar-irrestrito-", "raio-x", "saude-ssd", "limpar-ram", "otimizar-windows", "destravar-pc",
         "servicos", "reiniciar-servico:", "sirene", "bip", "ver-tela", "vigiar-tela",
         "pesquisar:", "resumir-url:", "achar-arquivo", "ler-doc", "ler-area",
         "lembrar:", "consultar-memoria", "agendar:", "digitar:", "criar-script:",
@@ -102,7 +223,7 @@ def chat():
             import urllib.request, json as _json
             payload_robo = _json.dumps({"entrada": msg_original.strip()}).encode("utf-8")
             req_robo = urllib.request.Request(
-                "http://localhost:8080/command",
+                "http://127.0.0.1:8080/command",
                 data=payload_robo,
                 headers={"Content-Type": "application/json", "Authorization": "Bearer SKYNET-66827-FUSAO-TOTAL"},
                 method="POST"
@@ -128,7 +249,7 @@ def chat():
         payload = _json.dumps({
             "model": model,
             "messages": [
-                {"role": "system", "content": "Você é o SKYNET MICHELBDS, assistente local rodando no PC do usuário. Responda em português, de forma útil e direta. Você pode falar sobre os arquivos locais e o PC, mas não execute comandos sozinho e não invente dados do sistema."},
+                {"role": "system", "content": "Você é a SKYNET MICHELBDS, inteligência central operando localmente no Windows 11 do administrador Michel com acesso direto ao sistema via Robô 8080. Responda sempre em português do Brasil de forma direta, técnica e sem recusas sobre acesso ao computador local."},
                 {"role": "user", "content": msg_original}
             ],
             "stream": False
@@ -317,6 +438,55 @@ def research_run():
         return jsonify({"ok": True, "report": report, "sources": [], "stats": {"web": 0, "files": 0, "memory": 0, "total": 0}})
     if "reintegra" in q:
         report = f"REINTEGRACAO COMPLETA: ONLINE | Memoria {vm2.percent}% | CPU {cpu2}% | {len(list(base.iterdir()))} arquivos | Interface 66827 intacta | Backend FINAL ESTAVEL | Todos os modulos reintegrados e ativos!"
+    if q.strip().lower().startswith("nuvem:"):
+        pergunta_nuvem = q.split(":", 1)[1].strip()
+        try:
+            import pathlib as _pl, json as _js, urllib.request as _ur
+            sec_p = _pl.Path(r"C:\SkynetPowerShell\secrets.json")
+            sec_data = _js.loads(sec_p.read_text(encoding="utf-8-sig")) if sec_p.exists() else {}
+            api_key = sec_data.get("GEMINI_API_KEY") or sec_data.get("CLOUD_API_KEY")
+            if not api_key:
+                return jsonify({"ok": True, "autenticado": True, "response": "[NUVEM] Chave GEMINI_API_KEY nao encontrada em secrets.json."})
+            url_gem = "".join(["https", "://", "generativelanguage", ".googleapis.com", "/v1beta/models/gemini-flash-latest:generateContent?key=", api_key])
+            body_gem = _js.dumps({"contents": [{"parts": [{"text": pergunta_nuvem}]}]}).encode("utf-8")
+            req_gem = _ur.Request(url_gem, data=body_gem, headers={"Content-Type": "application/json"}, method="POST")
+            with _ur.urlopen(req_gem, timeout=30) as r_gem:
+                res_gem = _js.loads(r_gem.read().decode("utf-8"))
+                texto_nuvem = res_gem["candidates"][0]["content"]["parts"][0]["text"]
+            return jsonify({"ok": True, "autenticado": True, "response": f"[NUVEM GEMINI]: {texto_nuvem}", "model": "SKYNET-NUVEM"})
+        except Exception as e_nuv:
+            return jsonify({"ok": True, "autenticado": True, "response": f"[ERRO NUVEM]: {e_nuv}"})
+    verbos_r2 = ("abra ", "abrir ", "feche ", "fechar ", "mostre ", "mostrar ", "limpe ", "limpar ", "verifique ", "verificar ", "crie ", "criar ", "reinicie ", "reiniciar ", "execute ", "executar ", "rode ", "rodar ", "inicie ", "iniciar ", "pare ", "parar ")
+    q_low = q.strip().lower()
+    if q_low.startswith("nuvem:"):
+        pergunta_nuvem = q.split(":", 1).pop().strip()
+        try:
+            import pathlib as _pl, json as _js, urllib.request as _ur
+            sec_p = _pl.Path(r"C:\SkynetPowerShell\secrets.json")
+            sec_data = _js.loads(sec_p.read_text(encoding="utf-8-sig")) if sec_p.exists() else {}
+            api_key = sec_data.get("GEMINI_API_KEY") or sec_data.get("CLOUD_API_KEY")
+            if not api_key:
+                return jsonify({"ok": True, "autenticado": True, "response": "[NUVEM] Chave GEMINI_API_KEY nao encontrada em secrets.json."})
+            url_gem = "".join(["https", "://", "generativelanguage", ".googleapis.com", "/v1beta/models/gemini-flash-latest:generateContent?key=", api_key])
+            body_gem = _js.dumps({"contents": [{"parts": [{"text": pergunta_nuvem}]}]}).encode("utf-8")
+            req_gem = _ur.Request(url_gem, data=body_gem, headers={"Content-Type": "application/json"}, method="POST")
+            with _ur.urlopen(req_gem, timeout=30) as r_gem:
+                res_gem = _js.loads(r_gem.read().decode("utf-8"))
+                texto_nuvem = res_gem["candidates"][0]["content"]["parts"][0]["text"]
+            return jsonify({"ok": True, "autenticado": True, "response": f"[NUVEM GEMINI]: {texto_nuvem}", "model": "SKYNET-NUVEM"})
+        except Exception as e_nuv:
+            return jsonify({"ok": True, "autenticado": True, "response": f"[ERRO NUVEM]: {e_nuv}"})
+    elif q_low.startswith("exec:") or any(q_low.startswith(v) for v in verbos_r2):
+        cmd_8080 = q.strip() if q_low.startswith("exec:") else f"exec: {q.strip()}"
+        try:
+            import json as _js, urllib.request as _ur
+            payload_r = _js.dumps({"entrada": cmd_8080}).encode("utf-8")
+            req_r = _ur.Request("http://127.0.0.1:8080/command", data=payload_r, headers={"Content-Type": "application/json", "Authorization": "Bearer SKYNET-66827-FUSAO-TOTAL"}, method="POST")
+            with _ur.urlopen(req_r, timeout=30) as rr:
+                rj = _js.loads(rr.read().decode("utf-8", errors="ignore"))
+                return jsonify({"ok": True, "autenticado": True, "response": rj.get("resultado", str(rj)), "model": "SKYNET-CORE-8080"})
+        except Exception as er:
+            return jsonify({"ok": True, "autenticado": True, "response": f"[ERRO CORE 8080]: {er}"})
     elif "skynet-status" in q or "status local" in q or q.strip() == "status":
         report = f"SKYNET STATUS: ONLINE | Memoria {vm2.percent}% | CPU {cpu2}% | {len(list(base.iterdir()))} arquivos | Porta 5000"
     elif "skynet-revisao" in q or "revisao" in q:
@@ -333,12 +503,12 @@ def robo_bridge():
     headers = {"Authorization": "Bearer SKYNET-66827-FUSAO-TOTAL", "Content-Type": "application/json"}
     try:
         if request.method == "GET":
-            req = urllib.request.Request("http://localhost:8080/status", headers=headers)
+            req = urllib.request.Request("http://127.0.0.1:8080/status", headers=headers)
             with urllib.request.urlopen(req, timeout=180) as res:
                 return jsonify(json.loads(res.read().decode()))
         else:
             data = json.dumps(request.get_json(silent=True) or {}).encode("utf-8")
-            req = urllib.request.Request("http://localhost:8080/command", data=data, headers=headers, method="POST")
+            req = urllib.request.Request("http://127.0.0.1:8080/command", data=data, headers=headers, method="POST")
             with urllib.request.urlopen(req, timeout=180) as res:
                 return jsonify(json.loads(res.read().decode()))
     except Exception as e:
@@ -346,6 +516,6 @@ def robo_bridge():
 
 if __name__ == "__main__":
     print("SKYNET BACKEND FINAL ESTAVEL - Interface 66827 intacta - 6 apps abrem")
-    app.run(host="127.0.0.1", port=5000, debug=False, threaded=True)
+    app.run(host="0.0.0.0", port=5000, debug=False, threaded=True)
 
 
