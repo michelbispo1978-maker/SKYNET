@@ -713,21 +713,6 @@ window.addEventListener('DOMContentLoaded', () => {
 </script>
 
 <script>
-// Trava anti-eco: impede o navegador de falar enquanto ja existe fala ativa ou comando do robo 8080
-(function() {
-  if ('speechSynthesis' in window) {
-    const origSpeak = window.speechSynthesis.speak.bind(window.speechSynthesis);
-    window.speechSynthesis.speak = function(utterance) {
-      if (window.speechSynthesis.speaking || window.speechSynthesis.pending) {
-        window.speechSynthesis.cancel();
-      }
-      setTimeout(() => origSpeak(utterance), 150);
-    };
-  }
-})();
-</script>
-
-<script>
 // Escudo Anti-Auto-Escuta: ignora o microfone enquanto a Skynet (Web ou Windows) estiver falando
 (function() {
   window._skynetRoboFalando = false;
@@ -755,6 +740,39 @@ window.addEventListener('DOMContentLoaded', () => {
         if (origResult) origResult.apply(this, arguments);
       };
       return origStart.apply(this, arguments);
+    };
+  }
+})();
+</script>
+
+<script>
+// Trava Mestre de Voz: impede dupla fala entre Navegador e Robo Windows 8080
+(function() {
+  window._skynetRoboFalando = false;
+  setInterval(async () => {
+    try {
+      const r = await fetch('http://localhost:8080/falando');
+      if (r.ok) {
+        const d = await r.json();
+        window._skynetRoboFalando = !!d.falando;
+        if (window._skynetRoboFalando && 'speechSynthesis' in window) {
+          window.speechSynthesis.cancel();
+        }
+      }
+    } catch (e) {}
+  }, 250);
+
+  if ('speechSynthesis' in window) {
+    const origSpeak = window.speechSynthesis.speak.bind(window.speechSynthesis);
+    window.speechSynthesis.speak = function(utterance) {
+      if (window._skynetRoboFalando) {
+        console.log('[SKYNET VOZ] Navegador silenciado: Robo Windows ja esta falando.');
+        return;
+      }
+      window.speechSynthesis.cancel();
+      setTimeout(() => {
+        if (!window._skynetRoboFalando) origSpeak(utterance);
+      }, 250);
     };
   }
 })();
