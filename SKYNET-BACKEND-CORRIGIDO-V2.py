@@ -95,7 +95,7 @@ def chat():
         "vol-up", "vol-down", "vol-mute", "minimizar-tudo", "desligar-monitor",
         "bloquear-tela", "suspender-pc", "relatorio-geral", "gerar-relatorio",
         "sincronizar-github", "reiniciar-colmeia", "traduzir:", "gerar-senha",
-        "energia", "velocidade-net", "rede-wifi", "brilho:", "historico", "analisar-tela:", "aprender-pasta:", "plano:", "especialista:", "ler-tudo:", "investigar:", "janela-ativa", "focar:", "nova-area", "desktop-esq", "desktop-dir", "modo-turbo", "abrir:", "clicar-texto:", "digitar-na-tela:", "rotina:", "dispositivos", "analisar-copia", "ajuda", "scan-rede", "iot-", "abrir-"
+        "energia", "velocidade-net", "rede-wifi", "brilho:", "historico", "analisar-tela:", "aprender-pasta:", "plano:", "especialista:", "ler-tudo:", "investigar:", "janela-ativa", "focar:", "nova-area", "desktop-esq", "desktop-dir", "modo-turbo", "abrir:", "clicar-texto:", "digitar-na-tela:", "rotina:", "dispositivos", "analisar-copia", "posicionar:", "vigiar-downloads", "ajuda", "scan-rede", "iot-", "abrir-"
     )
     if any(msg.strip().startswith(p) for p in prefixos_robo):
         try:
