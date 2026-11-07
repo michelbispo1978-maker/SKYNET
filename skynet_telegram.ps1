@@ -1,42 +1,82 @@
-﻿[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
-# Skynet Telegram Bridge v1.0 - Controle Remoto Blindado
-$BotToken = "8765758342:AAE8Q8cINhDOmjjhp0yfFORAeLAeNk1xdic"
-$AdminId  = "257638854216"
-$BridgeUrl = "http://localhost:5000/api/robo-bridge"
-
-if ($BotToken -eq "SEU_TOKEN_AQUI") { exit }
-
-$Offset = 0
-while ($true) {
-    try {
-        $Updates = Invoke-RestMethod -Uri "https://telegram.org" -TimeoutSec 35
-        foreach ($Up in $Updates.result) {
-            $Offset = $Up.update_id + 1
-            $ChatId = "$($Up.message.chat.id)"
-            $Texto = "$($Up.message.text)".Trim()
-
-            # Trava de segurança: ignora qualquer pessoa que não seja o seu ID
-            if ($ChatId -ne $AdminId -or -not $Texto) { continue }
-
-                        if ($Texto -eq "/tela") {
-                $Body = @{ entrada = "ver-tela" } | ConvertTo-Json
-                $Res = Invoke-RestMethod -Uri $BridgeUrl -Method Post -Body $Body -ContentType "application/json" -TimeoutSec 90
-                $Resp = "[$($Res.decisao)]: $($Res.resultado)"
-            } elseif ($Texto -eq "/status") {
-                $St = Invoke-RestMethod -Uri $BridgeUrl -Method Get
-                $Resp = "SKYNET ONLINE | CPU: $($St.cpu)% | RAM: $($St.ram)% | Versão: $($St.versao)"
-            } else {
-                $Cmd = if ($Texto -eq "/ram") { "limpar-ram" } elseif ($Texto -eq "/rede") { "scan-rede" } else { $Texto }
-                $Body = @{ entrada = $Cmd; modelo = "skynet:final" } | ConvertTo-Json
-                $Res = Invoke-RestMethod -Uri $BridgeUrl -Method Post -Body $Body -ContentType "application/json" -TimeoutSec 60
-                $Resp = "[$($Res.decisao)]: $($Res.resultado)"
-            }
-
-            $SendBody = @{ chat_id = $ChatId; text = $Resp } | ConvertTo-Json
-            Invoke-RestMethod -Uri "https://telegram.org" -Method Post -Body $SendBody -ContentType "application/json; charset=utf-8" | Out-Null
-        }
-    } catch { Start-Sleep -Seconds 5 }
+﻿$SecretsPath = "C:\SkynetPowerShell\secrets.json"
+if (-not (Test-Path $SecretsPath)) {
+    Write-Host "[ERRO] Arquivo secrets.json nao encontrado!" -ForegroundColor Red
+    exit 1
 }
 
+$Secrets = Get-Content $SecretsPath -Raw -Encoding UTF8 | ConvertFrom-Json
+$Token = $Secrets.TELEGRAM_BOT_TOKEN
+$ChatAutorizado = "$($Secrets.TELEGRAM_CHAT_ID)".Trim()
 
+if ($Token -match "COLE_SEU" -or [string]::IsNullOrWhiteSpace($Token)) {
+    Write-Host "[AVISO] Abra C:\SkynetPowerShell\secrets.json e cole seu novo Token do @BotFather primeiro!" -ForegroundColor Yellow
+    exit 1
+}
 
+$BaseUri = "https://telegram.org"
+$Offset = 0
+$HeadersCore = @{ "Content-Type" = "application/json"; "Authorization" = "Bearer SKYNET-66827-FUSAO-TOTAL" }
+
+function Enviar-TextoTg($ChatId, $Texto) {
+    if ([string]::IsNullOrWhiteSpace($Texto)) { $Texto = "Comando executado." }
+    if ($Texto.Length -gt 3900) { $Texto = $Texto.Substring(0, 3900) + "`n...[truncado]" }
+    $Body = @{ chat_id = $ChatId; text = $Texto } | ConvertTo-Json -Compress
+    try { Invoke-RestMethod -Uri "$BaseUri/sendMessage" -Method Post -Body ([System.Text.Encoding]::UTF8.GetBytes($Body)) -ContentType "application/json" -TimeoutSec 15 | Out-Null } catch {}
+}
+
+function Enviar-FotoTg($ChatId, $CaminhoFoto, $Legenda) {
+    if (-not (Test-Path $CaminhoFoto)) { return }
+    try {
+        curl.exe -s -F "chat_id=$ChatId" -F "photo=@$CaminhoFoto" -F "caption=$Legenda" "$BaseUri/sendPhoto" | Out-Null
+    } catch {}
+}
+
+# Descobre seu CHAT_ID automaticamente caso ainda esteja vazio no secrets.json
+if ($ChatAutorizado -match "COLE_SEU" -or [string]::IsNullOrWhiteSpace($ChatAutorizado)) {
+    Write-Host "[AGUARDANDO] Envie um 'oi' para o seu bot no Telegram agora para capturar seu CHAT_ID automaticamente..." -ForegroundColor Cyan
+    while ($true) {
+        try {
+            $Upd = Invoke-RestMethod -Uri "$BaseUri/getUpdates?timeout=10" -TimeoutSec 15
+            if ($Upd.result.Count -gt 0) {
+                $Ultimo = $Upd.result[-1]
+                $ChatAutorizado = "$($Ultimo.message.chat.id)"
+                $Offset = $Ultimo.update_id + 1
+                $Secrets.TELEGRAM_CHAT_ID = $ChatAutorizado
+                $Secrets | ConvertTo-Json -Depth 3 | Set-Content $SecretsPath -Encoding UTF8
+                Enviar-TextoTg $ChatAutorizado "SKYNET CONECTADA! Seu Chat ID ($ChatAutorizado) foi vinculado com seguranca."
+                Write-Host "[OK] Chat ID $ChatAutorizado salvo no secrets.json!" -ForegroundColor Green
+                break
+            }
+        } catch {}
+        Start-Sleep 2
+    }
+}
+
+Write-Host "[ONLINE] Ponte Telegram -> Skynet Core 8080 ativa!" -ForegroundColor Green
+
+while ($true) {
+    try {
+        $Updates = Invoke-RestMethod -Uri "$BaseUri/getUpdates?offset=$Offset&timeout=20" -TimeoutSec 30
+        foreach ($Item in $Updates.result) {
+            $Offset = $Item.update_id + 1
+            $Msg = $Item.message
+            if (-not $Msg -or -not $Msg.text) { continue }
+            $Remetente = "$($Msg.chat.id)"
+            if ($Remetente -ne $ChatAutorizado) { continue }
+
+            $CmdTexto = $Msg.text.Trim()
+            $Payload = @{ entrada = $CmdTexto } | ConvertTo-Json -Compress
+            $Res = Invoke-RestMethod -Uri "http://localhost:8080/command" -Method Post -Headers $HeadersCore -Body ([System.Text.Encoding]::UTF8.GetBytes($Payload)) -TimeoutSec 90
+            $Resposta = if ($Res.resultado) { $Res.resultado } else { "$($Res.erro)" }
+
+            Enviar-TextoTg $Remetente $Resposta
+
+            if ($CmdTexto.ToLower().StartsWith("ver-tela")) {
+                $PrintPath = Get-ChildItem "C:\SkynetPowerShell\*.png", "C:\SkynetPowerShell\temp\*.png" -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+                if ($PrintPath) { Enviar-FotoTg $Remetente $PrintPath.FullName "Captura de tela atual" }
+            }
+        }
+    } catch {
+        Start-Sleep 3
+    }
+}

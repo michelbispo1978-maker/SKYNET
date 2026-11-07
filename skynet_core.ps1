@@ -1,3 +1,19 @@
+$Global:FilaVoz = [System.Collections.Queue]::Synchronized((New-Object System.Collections.Queue))
+function Falar-Skynet([string]$Texto) {
+    if ([string]::IsNullOrWhiteSpace($Texto)) { return }
+    $Global:FilaVoz.Enqueue($Texto)
+    if ($Synthesizer.State -ne 'Speaking' -and $Global:FilaVoz.Count -gt 0) {
+        $Prox = $Global:FilaVoz.Dequeue()
+        $Synthesizer.SpeakAsync($Prox) | Out-Null
+    }
+}
+Register-ObjectEvent -InputObject $Synthesizer -EventName SpeakCompleted -Action {
+    if ($Global:FilaVoz.Count -gt 0) {
+        $Prox = $Global:FilaVoz.Dequeue()
+        $Event.Sender.SpeakAsync($Prox) | Out-Null
+    }
+} | Out-Null
+
 ﻿# Configura��es Avan�adas Skynet Core v3.6.0 + Deep Network Scan
 $Port = 8080
 $Url = "http://localhost:$Port/"
@@ -42,7 +58,7 @@ $Listener.Prefixes.Add($Url)
 
 try {
     $Listener.Start()
-    $Synthesizer.SpeakAsync("Sensores de rede profunda ativados. Monitorando conex�es da malha.") | Out-Null
+    Falar-Skynet("Sensores de rede profunda ativados. Monitorando conex�es da malha.")
     
     while ($Listener.IsListening) {
         $Context = $Listener.GetContext()
@@ -108,7 +124,7 @@ try {
                             $Model = if ($InputData.modelo) { $InputData.modelo } else { "skynet:latest" }
                             $OllamaPayload = @{ model = $Model; prompt = $RawText; stream = $false } | ConvertTo-Json
                             $OllamaResponse = Invoke-RestMethod -Uri $OllamaUri -Method Post -Body $OllamaPayload -ContentType "application/json"
-                            $Synthesizer.SpeakAsync($OllamaResponse.response) | Out-Null
+                            Falar-Skynet($OllamaResponse.response)
                             $Resumo = if ($OllamaResponse.response.Length -gt 120) { $OllamaResponse.response.Substring(0, 117) + "..." } else { $OllamaResponse.response }
                             Enviar-Toast -Titulo "RESPOSTA DA IA" -Mensagem $Resumo
                             $ResponseData = @{ status = "SUCCESS"; decisao = "IA Local"; resultado = $OllamaResponse.response } | ConvertTo-Json

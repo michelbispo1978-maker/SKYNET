@@ -699,7 +699,7 @@ window.addEventListener('DOMContentLoaded', () => {
     ['🚀 Otimizar', 'otimizar-windows'], ['⚡ Destravar', 'destravar-pc'], ['👁️ Ver Tela', 'ver-tela'],
     ['🛡️ Vigiar', 'vigiar-tela'], ['📋 Ler Ctrl+C', 'ler-area'], ['🧠 Memória', 'consultar-memoria'],
     ['🔑 Senha', 'gerar-senha'], ['📑 Relatório', 'gerar-relatorio'], ['🚨 Sirene', 'sirene'],
-    ['☁️ GitHub', 'sincronizar-github'], ['❓ Ajuda', 'ajuda']
+    ['☁️ GitHub', 'sincronizar-github'], ['🌐 Internet', 'velocidade-net'], ['📡 Rede Wi-Fi', 'rede-wifi'], ['📜 Histórico', 'historico'], ['❓ Ajuda', 'ajuda']
   ];
   acoes.forEach(([label, cmd]) => {
     const b = document.createElement('button');
@@ -710,6 +710,54 @@ window.addEventListener('DOMContentLoaded', () => {
   });
   alvo.appendChild(grp);
 });
+</script>
+
+<script>
+// Trava anti-eco: impede o navegador de falar enquanto ja existe fala ativa ou comando do robo 8080
+(function() {
+  if ('speechSynthesis' in window) {
+    const origSpeak = window.speechSynthesis.speak.bind(window.speechSynthesis);
+    window.speechSynthesis.speak = function(utterance) {
+      if (window.speechSynthesis.speaking || window.speechSynthesis.pending) {
+        window.speechSynthesis.cancel();
+      }
+      setTimeout(() => origSpeak(utterance), 150);
+    };
+  }
+})();
+</script>
+
+<script>
+// Escudo Anti-Auto-Escuta: ignora o microfone enquanto a Skynet (Web ou Windows) estiver falando
+(function() {
+  window._skynetRoboFalando = false;
+  setInterval(async () => {
+    try {
+      const r = await fetch('http://localhost:8080/falando');
+      const d = await r.json();
+      window._skynetRoboFalando = !!d.falando;
+    } catch (e) {
+      window._skynetRoboFalando = false;
+    }
+  }, 400);
+
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (SR) {
+    const origStart = SR.prototype.start;
+    SR.prototype.start = function() {
+      const rec = this;
+      const origResult = rec.onresult;
+      rec.onresult = function(ev) {
+        if (window.speechSynthesis.speaking || window._skynetRoboFalando) {
+          console.log('[SKYNET MIC] Ignorado: Skynet esta falando.');
+          return;
+        }
+        if (origResult) origResult.apply(this, arguments);
+      };
+      return origStart.apply(this, arguments);
+    };
+  }
+})();
 </script>
 </body>
 </html>
